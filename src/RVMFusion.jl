@@ -1,5 +1,5 @@
 #  RVM for lower quality data
-module Fusion
+module RVMFusion
 using Statistics, LinearAlgebra, StatsBase, Distributions
 using ThreadsX, Transducers, Folds, ProgressMeter
 export RVM, RVM!
