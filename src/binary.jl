@@ -89,7 +89,7 @@ function RVM!(X::Matrix{T}, t::Vector{T}, α::Vector{T};
         spinner=true
     )
     for iter = 2:maxiter
-        ind = findall(1 ./ α .> tol) # index of nonzeros
+        ind = findall(α .< 10000) # index of nonzeros
         αtmp = @view α[ind]
         wtmp = @view w[ind]
         Xtmp = @view X[:, ind]
@@ -109,7 +109,7 @@ function RVM!(X::Matrix{T}, t::Vector{T}, α::Vector{T};
         )
         if incr < tol
             ProgressMeter.finish!(prog, spinner = '✓')
-            return wtmp, convert(Array{T}, Symmetric(H)), ind
+            return w[ind], convert(Array{T}, Symmetric(H)), ind
         end
         #Σ = Hermitian(H) \ I
         αtmp .= 1 ./ (wtmp.^2 .+ diag(H)) #(1 .- αtmp .* diag(H)) ./ (wtmp.^2)
@@ -379,15 +379,4 @@ function Logit(
     ldiv!(H, qr(H), I(d))  # need to be sure
     predict!(y, Xtest, wl, H, 1:d)
     return vcat((wl.-wh).^2, diag(H), y, llh+0.5logdet(H))
-end
-
-function add_diagonal!(X::AbstractArray{T}, d::AbstractVector{T}) where T<:Real
-    m = size(X, 1)
-    n = size(X, 2)
-    m == n || throw(DimensionMismatch("X must be a sqaure matrix."))
-    m = min(m, size(d, 1))
-    for k = 1:m
-        @inbounds X[k, k] += d[k]
-    end
-    return X
 end
