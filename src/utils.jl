@@ -26,3 +26,5 @@ function add_diagonal!(X::AbstractArray{T}, d::AbstractVector{T}) where T<:Real
     end
     return X
 end
+
+sigmoid(x) = 1 / (1 + exp(-x))

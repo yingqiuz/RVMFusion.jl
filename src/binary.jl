@@ -119,7 +119,7 @@ function RVM!(X::Matrix{T}, t::Vector{T}, α::Vector{T};
     warn("Not converged after $(maxiter) iterations.")
 end
 
-"""train only
+"""train only - high + low - useless for now
 """
 function RVM!(XH::Matrix{T}, XL::Matrix{T}, t::Vector{T},
     α::Vector{T}, β::Vector{T}; tol::Float64=1e-5,
@@ -203,28 +203,31 @@ function RVM!(
     h[findall(iszero, t)] .= -1.0
     println("Generate posterior samples of wh...")
     whsamples = zeros(T, d, n_samples)
-    whsamples[ind_h, :] .= rand(MvNormal(wh, H), n_samples)
+    XLtmp = copy(XL[:, ind_h])
+    XLtesttmp = copy(XLtest[:, ind_h])
+    βtmp = copy(β[ind_h])
+    #whsamples[ind_h, :] .= rand(MvNormal(wh, H), n_samples)
     prog = ProgressUnknown(
         "training on low quality data...",
         spinner=true
     )
     for iter = 2:maxiter
         # the posterior or MLE solution of wl
-        ind = findall(1 ./ β .> tol) # optional
-        n_ind = size(ind, 1)
-        βtmp = @view β[ind]
-        XLtmp = @view XL[:, ind]
-        XLtmpt = transpose(XLtmp)
-        XLtesttmp = @view XLtest[:, ind]
-        @views g = whsamples[ind, :] |> eachcol |>
+        ind_l = findall(βtmp .< 10000) # optional
+        n_ind = size(ind_l, 1)
+        β2 = @view βtmp[ind_l]
+        XL2 = @view XLtmp[:, ind_l]
+        XL2t = transpose(XL2)
+        XLtest2 = @view XLtesttmp[:, ind_l]
+        @views g = whsamples[ind_l, :] |> eachcol |>
         Map(
             x -> Logit(
-                x, βtmp, XLtmp, XLtmpt, t,
-                XLtesttmp, h, tol, maxiter
+                x, β2, XL2, XL2t, t,
+                XLtest2, h, tol, maxiter
             )
         ) |> Broadcasting() |> Folds.sum
         g ./= n_samples
-        evi[iter] = g[end] + 0.5sum(log.(βtmp))
+        evi[iter] = g[end] + 0.5sum(log.(β2))
         incr = abs(evi[iter] - evi[iter-1]) / abs(evi[iter-1])
         ProgressMeter.next!(
             prog;
@@ -234,7 +237,7 @@ function RVM!(
             ProgressMeter.finish!(prog, spinner = '✓')
             return g[2n_ind+1:end-1]
         end
-        @views βtmp .= (1 .- βtmp .* g[n_ind+1:2n_ind]) ./ g[1:n_ind]
+        @views β2 .= (1 .- β2 .* g[n_ind+1:2n_ind]) ./ g[1:n_ind]
     end
     ProgressMeter.finish!(prog, spinner = '✗')
     warn("Not converged after $(maxiter) iterations.")
@@ -288,7 +291,6 @@ function Logit!(
         copyto!(gp, g)
     end
     @warn "Not converged in finding the posterior of wh."
-    return llh
 end
 
 function Logit(
@@ -344,40 +346,41 @@ function Logit(
 ) where T<:Real
     # need a sampler
     n, d = size(X)
-    wp, g = (zeros(T, d) for _ = 1:2)
-    H = Matrix{T}(undef, d, d)
+    wp, g, gp = (zeros(T, d) for _ = 1:3)
+    #H = Matrix{T}(undef, d, d)
     a, y = (Vector{T}(undef, n) for _ = 1:2)
     wl = copy(wh)
     mul!(a, X, wh)
     llhp = -Inf; llh = -Inf
+    y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
+    r = [0.00001]
     for iter = 2:maxiter
-        y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
-        # update Hessian
-        H .= Xt * Diagonal(y .* (1 .- y)) * X
-        add_diagonal!(H, α)
         # update gradient
+        copyto!(gp, g)
         mul!(g, Xt, t .- y)
         g .-= α .* wl
-        ldiv!(factorize(H), g)
+        #ldiv!(factorize(H), g)
         # update w
         copyto!(wp, wl)
-        wl .+= g
+        wl .+= g * r
         mul!(a, X, wl)
         llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
         while llh - llhp < 0.0
             g ./= 2
-            wl .= wp .+ g
+            wl .= wp .+ g .* r
             mul!(a, X, wl)
             llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
         end
-        llh - llhp > tol ? llhp = llh : break
+        y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
+        if llh - llhp < tol
+            H = WoodburyInv!(α, Diagonal(sqrt.(y .* (1 .- y))) * X)
+            predict!(y, Xtest, wl, H, 1:d)
+            return vcat((wl.-wh).^2, diag(H), y, llh+0.5logdet(H))
+        else
+            llhp=llh
+            r .= abs(sum((wl .- wp) .* (g .- gp))) ./ sum((g .- gp) .^ 2)
+            #r .= abs.(r) ./ sum((g .- gp) .^ 2)
+        end
     end
-    # last update of Hessian
-    y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
-    # update Hessian
-    H .= Xt * Diagonal(y .* (1 .- y)) * X
-    add_diagonal!(H, α)
-    ldiv!(H, qr(H), I(d))  # need to be sure
-    predict!(y, Xtest, wl, H, 1:d)
-    return vcat((wl.-wh).^2, diag(H), y, llh+0.5logdet(H))
+    @warn "Not converged in finding the posterior of wh."
 end
