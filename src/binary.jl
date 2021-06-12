@@ -249,11 +249,12 @@ function Logit!(
 
     n = size(X, 1)
     d = size(X, 2)
-    g = Vector{T}(undef, d)
+    g, gp = (zeros(T, d) for _ ∈ 1:2)
     mul!(a, X, w)
     llhp = -Inf; llh = -Inf
     wp = similar(w)
     y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
+    r  = [0.00001]
     for iter = 2:maxiter
         # update Hessian
         #H .= Xt * Diagonal(y .* (1 .- y)) * X
@@ -264,12 +265,12 @@ function Logit!(
         #ldiv!(qr(H), g)
         # update w
         copyto!(wp, w)
-        w .+= g
+        w .+= g .* r
         mul!(a, X, w)
         llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* w .^ 2)
         while llh - llhp < 0.0
             g ./= 2
-            w .= wp .+ g
+            w .= wp .+ g .* r
             mul!(a, X, w)
             llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* w .^ 2)
         end
@@ -280,7 +281,10 @@ function Logit!(
             #add_diagonal!(H, α)
             return llh
         end
+        r .= sum((w .- wp) .* (g .- gp))
+        r .= abs.(r) ./ sum((g .- gp) .^ 2)
         llhp = llh
+        copyto!(gp, g)
     end
     @warn "Not converged in finding the posterior of wh."
     return llh
