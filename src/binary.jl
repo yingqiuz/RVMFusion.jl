@@ -94,11 +94,11 @@ function RVM!(X::Matrix{T}, t::Vector{T}, α::Vector{T};
         wtmp = @view w[ind]
         Xtmp = @view X[:, ind]
         n_ind = size(ind, 1)
-        H = Matrix{T}(undef, n_ind, n_ind)
+        #H = Matrix{T}(undef, n_ind, n_ind)
         # find posterior w - mode and hessian
-        llh2[iter] = Logit!(
+        llh2[iter], H = Logit!(
             wtmp, αtmp, Xtmp, transpose(Xtmp),
-            t, tol, maxiter, a, h, H, y
+            t, tol, maxiter, a, h, y
         )
         llh2[iter] += 0.5sum(log.(αtmp))
         llh2[iter] += 0.5logdet(H)
@@ -244,7 +244,7 @@ function Logit!(
     X::AbstractArray{T}, Xt::AbstractArray{T},
     t::AbstractArray{T}, tol::Float64,
     maxiter::Int64, a::AbstractArray{T}, h::AbstractArray{T},
-    H::AbstractArray{T}, y::AbstractArray{T}
+    y::AbstractArray{T}
 ) where T<:Real
 
     n = size(X, 1)
@@ -276,10 +276,10 @@ function Logit!(
         end
         y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
         if llh - llhp < tol
-            H = WoodburyInv!(α, Diagonal(sqrt.(y .* (1 .- y))) * X)
+            #H = WoodburyInv!(α, Diagonal(sqrt.(y .* (1 .- y))) * X)
             #H .= Xt * Diagonal(y .* (1 .- y)) * X
             #add_diagonal!(H, α)
-            return llh
+            return llh, WoodburyInv!(α, Diagonal(sqrt.(y .* (1 .- y))) * X)
         end
         r .= sum((w .- wp) .* (g .- gp))
         r .= abs.(r) ./ sum((g .- gp) .^ 2)
