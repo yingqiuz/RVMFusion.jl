@@ -363,7 +363,7 @@ function Logit(
         #ldiv!(factorize(H), g)
         # update w
         copyto!(wp, wl)
-        wl .+= g * r
+        wl .+= g .* r
         mul!(a, X, wl)
         llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
         while llh - llhp < 0.0
