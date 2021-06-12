@@ -4,10 +4,10 @@ using Statistics, LinearAlgebra, StatsBase, Distributions
 using ThreadsX, Transducers, Folds, ProgressMeter
 import LoopVectorization
 
-export RVM, RVM!
+export RVM, RVM!, sigmoid
 
 include("utils.jl")
-include("binary.jl")
-include("multiclass.jl")
+include("binomial.jl")
+include("multinomial.jl")
 
 end
