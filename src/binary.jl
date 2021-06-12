@@ -189,6 +189,7 @@ function RVM!(
     α::Vector{T}, β::Vector{T}; tol::Float64=1e-5,
     maxiter::Int64=10000, n_samples::Int64=1000
 ) where T<:Real
+
     n, d = size(XL)
     # should add more validity checks
     size(t, 1) == n || throw(DimensionMismatch("Sizes of X and t mismatch."))
@@ -202,7 +203,7 @@ function RVM!(
     h = ones(T, n)
     h[findall(iszero, t)] .= -1.0
     println("Generate posterior samples of wh...")
-    whsamples = zeros(T, d, n_samples)
+    whsamples = rand(MvNormal(wh, H), n_samples)
     XLtmp = copy(XL[:, ind_h])
     XLtesttmp = copy(XLtest[:, ind_h])
     βtmp = copy(β[ind_h])
@@ -377,9 +378,8 @@ function Logit(
             predict!(y, Xtest, wl, H, 1:d)
             return vcat((wl.-wh).^2, diag(H), y, llh+0.5logdet(H))
         else
-            llhp=llh
+            llhp = llh
             r .= abs(sum((wl .- wp) .* (g .- gp))) ./ sum((g .- gp) .^ 2)
-            #r .= abs.(r) ./ sum((g .- gp) .^ 2)
         end
     end
     @warn "Not converged in finding the posterior of wh."
