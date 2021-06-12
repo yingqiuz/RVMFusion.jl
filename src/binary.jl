@@ -112,7 +112,8 @@ function RVM!(X::Matrix{T}, t::Vector{T}, α::Vector{T};
             return w[ind], convert(Array{T}, Symmetric(H)), ind
         end
         #Σ = Hermitian(H) \ I
-        αtmp .= 1 ./ (wtmp.^2 .+ diag(H)) #(1 .- αtmp .* diag(H)) ./ (wtmp.^2)
+        αtmp .= (1 .- αtmp .* diag(H)) ./ (wtmp.^2)
+        #αtmp .= 1 ./ (wtmp.^2 .+ diag(H)) #(1 .- αtmp .* diag(H)) ./ (wtmp.^2)
     end
     ProgressMeter.finish!(prog, spinner = '✗')
     warn("Not converged after $(maxiter) iterations.")
