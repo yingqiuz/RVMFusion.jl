@@ -212,6 +212,7 @@ function RVM!(
         "training on low quality data...",
         spinner=true
     )
+    BLAS.set_num_threads(1)
     for iter = 2:maxiter
         # the posterior or MLE solution of wl
         ind_l = findall(βtmp .< 10000) # optional
@@ -240,6 +241,7 @@ function RVM!(
         end
         @views β2 .= (1 .- β2 .* g[n_ind+1:2n_ind]) ./ g[1:n_ind]
     end
+    BLAS.set_num_threads(Threads.nthreads())
     ProgressMeter.finish!(prog, spinner = '✗')
     warn("Not converged after $(maxiter) iterations.")
 end
