@@ -112,7 +112,7 @@ function RVM!(X::Matrix{T}, t::Vector{T}, α::Vector{T};
             return wtmp, convert(Array{T}, Symmetric(H)), ind
         end
         #Σ = Hermitian(H) \ I
-        αtmp .= (1 .- αtmp .* diag(H)) ./ (wtmp.^2)
+        αtmp .= 1 ./ (wtmp.^2 .+ diag(H)) #(1 .- αtmp .* diag(H)) ./ (wtmp.^2)
     end
     ProgressMeter.finish!(prog, spinner = '✗')
     warn("Not converged after $(maxiter) iterations.")
@@ -259,9 +259,9 @@ function Logit!(
         #H .= Xt * Diagonal(y .* (1 .- y)) * X
         #add_diagonal!(H, α)
         # update gradient
-        #mul!(g, Xt, t .- y)
+        mul!(g, Xt, t .- y)
         g .-= α .* w
-        ldiv!(qr(H), g)
+        #ldiv!(qr(H), g)
         # update w
         copyto!(wp, w)
         w .+= g
