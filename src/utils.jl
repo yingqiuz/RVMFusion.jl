@@ -5,14 +5,30 @@ function WoodburyInv!(
 
     nrow, ncol = size(X)
     if nrow < ncol
-        covmat = X * transpose(X)
-
         rmul!(X, Diagonal(sqrt.(1 ./ g)))
         C = cholesky!(Hermitian(I + X * X'))
         rmul!(X, Diagonal(sqrt.(1 ./ g)))
-        return Diagonal(1 ./ g) - X' * (C \ X)
+        return Diagonal(1 ./ g) - X' * LinearAlgebra.inv!(C) * X
     else
-        return Hermitian(Diagonal(g) + X' * X) \ I(ncol)
+        return LinearAlgebra.inv!(cholesky!(Hermitian(Diagonal(g) + X' * X)))
+    end
+end
+
+function WoodburyInv!(
+    d::AbstractArray{T},
+    g::AbstractArray{T},
+    X::AbstractArray{T}
+) where T <: Real
+
+    nrow, ncol = size(X)
+    if nrow < ncol
+        rmul!(X, Diagonal(sqrt.(1 ./ g)))
+        C = cholesky!(Hermitian(I + X * X'))
+        d .= (1 ./ g) - (1 ./ sqrt.(g)) .* diag(X' * LinearAlgebra.inv!(C) * X) .* (1 ./ sqrt.(g))
+        #rmul!(X, Diagonal(sqrt.(1 ./ g)))
+        #return Diagonal(1 ./ g) - X' * inv!(C) * X
+    else
+        return d .= diag(LinearAlgebra.inv!(cholesky!(Hermitian(Diagonal(g) + X' * X))))  # \ I(ncol)
     end
 end
 
