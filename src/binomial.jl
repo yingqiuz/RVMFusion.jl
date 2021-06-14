@@ -208,6 +208,7 @@ function RVM!(
     XLtmp = copy(XL[:, ind_h])
     XLtesttmp = copy(XLtest[:, ind_h])
     βtmp = copy(β[ind_h])
+    βp = similar(βtmp)
     #whsamples[ind_h, :] .= rand(MvNormal(wh, H), n_samples)
     prog = ProgressUnknown(
         "training on low quality data...",
@@ -230,17 +231,19 @@ function RVM!(
             )
         ) |> Broadcasting() |> Folds.sum
         g ./= n_samples
-        evi[iter] = g[end] + 0.5sum(log.(β2))
-        incr = abs(evi[iter] - evi[iter-1]) / abs(evi[iter-1])
+        #evi[iter] = g[end] + 0.5sum(log.(β2))
+        @views β2 .= (1 .- β2 .* g[n_ind+1:2n_ind]) ./ g[1:n_ind]
+        incr = maximum(abs.(βtmp - βp) ./ abs.(βp))
+        #incr = abs(evi[iter] - evi[iter-1]) / abs(evi[iter-1])
         ProgressMeter.next!(
             prog;
             showvalues = [(:iter,iter-1), (:incr,incr)]
         )
         if incr < tol
             ProgressMeter.finish!(prog, spinner = '✓')
-            return g[2n_ind+1:end-1]
+            return g[2n_ind+1:end]
         end
-        @views β2 .= (1 .- β2 .* g[n_ind+1:2n_ind]) ./ g[1:n_ind]
+        copyto!(βp, βtmp)
     end
     ProgressMeter.finish!(prog, spinner = '✗')
     warn("Not converged after $(maxiter) iterations.")
@@ -378,7 +381,7 @@ function Logit(
         if llh - llhp < tol
             H = WoodburyInv!(α, Diagonal(sqrt.(y .* (1 .- y))) * X)
             predict!(y, Xtest, wl, H, 1:d)
-            return vcat((wl.-wh).^2, diag(H), y, llh+0.5logdet(H))
+            return vcat((wl.-wh).^2, diag(H), y) #, llh+0.5logdet(H))
         else
             llhp = llh
             r .= abs(sum((wl .- wp) .* (g .- gp))) ./ sum((g .- gp) .^ 2)
