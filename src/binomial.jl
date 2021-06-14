@@ -193,16 +193,18 @@ function RVM!(
     # should add more validity checks
     size(t, 1) == n || throw(DimensionMismatch("Sizes of X and t mismatch."))
     size(α, 1) == d || throw(DimensionMismatch("Sizes of X and initial α mismatch."))
-    wh, H, ind_h = RVM!(XH, t, α; tol=tol, maxiter=maxiter)
+    wh, H, ind = RVM!(XH, t, α; tol=tol, maxiter=maxiter)
     # preallocate type-II likelihood (evidence) vector
     evi = Vector{T}(undef, maxiter)
     fill!(evi, -Inf)
+    ind_nonzero = findall(x -> x > 1e-3, std(XL, dims=1)[:])
+    ind_h = findall(in(ind_nonzero), ind)
     # now for the lower quality # need a sampler
     # allocate memory
     h = ones(T, n)
     h[findall(iszero, t)] .= -1.0
     println("Generate posterior samples of wh...")
-    whsamples = rand(MvNormal(wh, H), n_samples)
+    whsamples = rand(MvNormal(wh, H), 5000)
     XLtmp = copy(XL[:, ind_h])
     XLtesttmp = copy(XLtest[:, ind_h])
     βtmp = copy(β[ind_h])
@@ -219,7 +221,8 @@ function RVM!(
         XL2 = @view XLtmp[:, ind_l]
         XL2t = transpose(XL2)
         XLtest2 = @view XLtesttmp[:, ind_l]
-        @views g = whsamples[ind_l, :] |> eachcol |>
+        subind = 1 + (iter % 5) * 1000 : 1000 + (iter % 5) * 1000
+        @views g = whsamples[ind_l, subind] |> eachcol |>
         Map(
             x -> Logit(
                 x, β2, XL2, XL2t, t,
