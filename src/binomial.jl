@@ -390,7 +390,7 @@ function Logit(
         if llh - llhp < tol
             H = WoodburyInv!(α, Diagonal(sqrt.(y .* (1 .- y))) * X)
             #predict!(y, Xtest, wl, H, 1:d)
-            return vcat((wl.-wh).^2, diag(g), llh+0.5logdet(H))
+            return vcat((wl.-wh).^2, diag(H), llh+0.5logdet(H))
         else
             llhp = llh
             r .= abs(sum((wl .- wp) .* (g .- gp))) ./ sum((g .- gp) .^ 2)
