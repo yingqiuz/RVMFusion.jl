@@ -232,7 +232,7 @@ function RVM!(
             )
         ) |> Broadcasting() |> Folds.sum
         g ./= n_samples
-        evi[iter] = g[end] #+ 0.5sum(log.(β2))
+        evi[iter] = g[end] + 0.5sum(log.(β2))
         @views β2 .= (1 .- β2 .* g[n_ind+1:2n_ind]) ./ g[1:n_ind]
         #incr = maximum(abs.(βtmp .- βp) ./ abs.(βp))
         incr = abs(evi[iter] - evi[iter-1]) / abs(evi[iter-1])
@@ -255,7 +255,7 @@ function RVM!(
         copyto!(βp, βtmp)
     end
     ProgressMeter.finish!(prog, spinner = '✗')
-    warn("Not converged after $(maxiter) iterations.")
+    @warn "Not converged after $(maxiter) iterations."
 end
 
 function Logit!(
@@ -388,9 +388,9 @@ function Logit(
         end
         y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
         if llh - llhp < tol
-            WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
+            H = WoodburyInv!(α, Diagonal(sqrt.(y .* (1 .- y))) * X)
             #predict!(y, Xtest, wl, H, 1:d)
-            return vcat((wl.-wh).^2, g, llh)#, y, llh+0.5logdet(H))
+            return vcat((wl.-wh).^2, diag(g), llh+0.5logdet(H))
         else
             llhp = llh
             r .= abs(sum((wl .- wp) .* (g .- gp))) ./ sum((g .- gp) .^ 2)
