@@ -186,7 +186,7 @@ train and predict
 function RVM!(
     XH::Matrix{T}, XL::Matrix{T}, t::Vector{T}, XLtest::Matrix{T},
     α::Vector{T}, β::Vector{T}; tol::Float64=1e-5,
-    maxiter::Int64=10000, n_samples::Int64=1000
+    maxiter::Int64=10000, n_samples::Int64=2000
 ) where T<:Real
 
     n, d = size(XL)
@@ -198,14 +198,14 @@ function RVM!(
     evi = Vector{T}(undef, maxiter)
     fill!(evi, -Inf)
     @show fit(Histogram, std(XL, dims=1)[:])
-    ind_nonzero = findall(x -> x > 1e-1, std(XL, dims=1)[:])
+    ind_nonzero = findall(x -> x > 1e-2, std(XL, dims=1)[:])
     ind_h = findall(in(ind_nonzero), ind)
     # now for the lower quality # need a sampler
     # allocate memory
     h = ones(T, n)
     h[findall(iszero, t)] .= -1.0
     println("Generate posterior samples of wh...")
-    whsamples = rand(MvNormal(wh, H), 5000)
+    whsamples = rand(MvNormal(wh, H), n_samples)
     XLtmp = copy(XL[:, ind_h])
     XLtesttmp = copy(XLtest[:, ind_h])
     βtmp = copy(β[ind_h])
@@ -223,12 +223,12 @@ function RVM!(
         XL2 = @view XLtmp[:, ind_l]
         XL2t = transpose(XL2)
         XLtest2 = @view XLtesttmp[:, ind_l]
-        subind = 1 + (iter % 5) * 1000 : 1000 + (iter % 5) * 1000
-        @views g = whsamples[ind_l, subind] |> eachcol |>
+        #subind = 1 + (iter % 5) * 1000 : 1000 + (iter % 5) * 1000
+        @views g = whsamples[ind_l, :] |> eachcol |>
         Map(
             x -> Logit(
                 x, β2, XL2, XL2t, t,
-                XLtest2, h, tol, maxiter
+                h, tol, maxiter
             )
         ) |> Broadcasting() |> Folds.sum
         g ./= n_samples
@@ -242,6 +242,14 @@ function RVM!(
         )
         if incr < tol
             ProgressMeter.finish!(prog, spinner = '✓')
+            @views g = whsamples[ind_l, :] |> eachcol |>
+            Map(
+                x -> Logit(
+                    x, β2, XL2, XL2t, t,
+                    XLtest2, h, tol, maxiter
+                )
+            ) |> Broadcasting() |> Folds.sum
+            g ./= n_samples
             return g[2n_ind+1:end]
         end
         copyto!(βp, βtmp)
@@ -348,7 +356,53 @@ end
 function Logit(
     wh::AbstractArray{T}, α::AbstractArray{T},
     X::AbstractArray{T}, Xt::AbstractArray{T},
-    t::AbstractArray{T}, Xtest::AbstractArray{T},
+    t::AbstractVector{T}, #Xtest::AbstractArray{T},
+    h::AbstractArray{T}, tol::Float64, maxiter::Int64
+) where T<:Real
+    # need a sampler
+    n, d = size(X)
+    wp, g, gp = (zeros(T, d) for _ = 1:3)
+    #H = Matrix{T}(undef, d, d)
+    a, y = (Vector{T}(undef, n) for _ = 1:2)
+    wl = copy(wh)
+    mul!(a, X, wh)
+    llhp = -Inf; llh = -Inf
+    y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
+    r = [0.00001]
+    for iter = 2:maxiter
+        # update gradient
+        copyto!(gp, g)
+        mul!(g, Xt, t .- y)
+        g .-= α .* wl
+        #ldiv!(factorize(H), g)
+        # update w
+        copyto!(wp, wl)
+        wl .+= g .* r
+        mul!(a, X, wl)
+        llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
+        while llh - llhp < 0.0
+            g ./= 2
+            wl .= wp .+ g .* r
+            mul!(a, X, wl)
+            llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
+        end
+        y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
+        if llh - llhp < tol
+            WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
+            #predict!(y, Xtest, wl, H, 1:d)
+            return vcat((wl.-wh).^2, g)#, y, llh+0.5logdet(H))
+        else
+            llhp = llh
+            r .= abs(sum((wl .- wp) .* (g .- gp))) ./ sum((g .- gp) .^ 2)
+        end
+    end
+    @warn "Not converged in finding the posterior of wh."
+end
+
+function Logit(
+    wh::AbstractArray{T}, α::AbstractArray{T},
+    X::AbstractArray{T}, Xt::AbstractArray{T},
+    t::AbstractVector{T}, Xtest::AbstractArray{T},
     h::AbstractArray{T}, tol::Float64, maxiter::Int64
 ) where T<:Real
     # need a sampler
