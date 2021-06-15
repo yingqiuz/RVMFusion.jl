@@ -198,7 +198,7 @@ function RVM!(
     evi = Vector{T}(undef, maxiter)
     fill!(evi, -Inf)
     @show fit(Histogram, std(XL, dims=1)[:])
-    ind_nonzero = findall(x -> x > 1e-2, std(XL, dims=1)[:])
+    ind_nonzero = findall(x -> x > 1e-4, std(XL, dims=1)[:])
     ind_h = findall(in(ind_nonzero), ind)
     @show ind_h ind
     # now for the lower quality # need a sampler
