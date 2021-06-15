@@ -200,6 +200,7 @@ function RVM!(
     @show fit(Histogram, std(XL, dims=1)[:])
     ind_nonzero = findall(x -> x > 1e-2, std(XL, dims=1)[:])
     ind_h = findall(in(ind_nonzero), ind)
+    @show ind_h ind
     # now for the lower quality # need a sampler
     # allocate memory
     h = ones(T, n)
@@ -388,9 +389,9 @@ function Logit(
         end
         y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
         if llh - llhp < tol
-            H = WoodburyInv!(α, Diagonal(sqrt.(y .* (1 .- y))) * X)
+            WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
             #predict!(y, Xtest, wl, H, 1:d)
-            return vcat((wl.-wh).^2, diag(H), llh+0.5logdet(H))
+            return vcat((wl.-wh).^2, g)#, llh+0.5logdet(H))
         else
             llhp = llh
             r .= abs(sum((wl .- wp) .* (g .- gp))) ./ sum((g .- gp) .^ 2)
