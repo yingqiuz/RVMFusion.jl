@@ -198,8 +198,8 @@ function RVM!(
     evi = Vector{T}(undef, maxiter)
     fill!(evi, -Inf)
     @show fit(Histogram, std(XL, dims=1)[:])
-    ind_nonzero = findall(x -> x > 1e-4, std(XL, dims=1)[:])
-    ind_h = findall(in(ind_nonzero), ind)
+    ind_nonzero = findall(x -> x > 1e-3, std(XL, dims=1)[:])
+    ind_h = ind[findall(in(ind_nonzero), ind)]
     @show ind_h ind
     # now for the lower quality # need a sampler
     # allocate memory
@@ -233,7 +233,7 @@ function RVM!(
             )
         ) |> Broadcasting() |> Folds.sum
         g ./= n_samples
-        evi[iter] = g[end] + 0.5sum(log.(β2))
+        evi[iter] = g[end] #+ 0.5sum(log.(β2))
         @views β2 .= (1 .- β2 .* g[n_ind+1:2n_ind]) ./ g[1:n_ind]
         #incr = maximum(abs.(βtmp .- βp) ./ abs.(βp))
         incr = abs(evi[iter] - evi[iter-1]) / abs(evi[iter-1])
