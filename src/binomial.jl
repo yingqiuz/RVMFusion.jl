@@ -197,7 +197,8 @@ function RVM!(
     # preallocate type-II likelihood (evidence) vector
     evi = Vector{T}(undef, maxiter)
     fill!(evi, -Inf)
-    ind_nonzero = findall(x -> x > 1e-3, std(XL, dims=1)[:])
+    @show fit(Histogram, std(XL, dims=1)[:])
+    ind_nonzero = findall(x -> x > 1e-2, std(XL, dims=1)[:])
     ind_h = findall(in(ind_nonzero), ind)
     # now for the lower quality # need a sampler
     # allocate memory
