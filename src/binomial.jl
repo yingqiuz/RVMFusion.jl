@@ -83,12 +83,14 @@ function RVM!(X::Matrix{T}, t::Vector{T}, α::Vector{T};
     w = randn(T, d)
     h = ones(T, n)
     h[findall(iszero, t)] .= -1.0
+    ind_nonzero = findall(x -> x > 1e-3, std(X, dims=1)[:])
     prog = ProgressUnknown(
         "training on high quality data...",
         spinner=true
     )
     for iter = 2:maxiter
-        ind = findall(α .< 10000) # index of nonzeros
+        ind_h = findall(α .< 10000) # index of nonzeros
+        ind = ind_h[findall(in(ind_nonzero), ind_h)]
         αtmp = @view α[ind]
         wtmp = @view w[ind]
         Xtmp = @view X[:, ind]
