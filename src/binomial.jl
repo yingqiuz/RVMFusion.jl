@@ -200,15 +200,21 @@ function RVM!(
     evi = Vector{T}(undef, maxiter)
     fill!(evi, -Inf)
     @show fit(Histogram, std(XL, dims=1)[:])
-    ind_nonzero = findall(x -> x > 1e-3, std(XL, dims=1)[:])
-    ind_h = ind[findall(in(ind_nonzero), ind)]
+    ind_nonzero = findall(in(findall(x -> x > 1e-3, std(XL, dims=1)[:])), ind)
+    ind_h = ind[ind_nonzero]
     @show ind_h ind
     # now for the lower quality # need a sampler
     # allocate memory
     h = ones(T, n)
     h[findall(iszero, t)] .= -1.0
     println("Generate posterior samples of wh...")
-    whsamples = rand(MvNormal(wh, H), n_samples)
+    @views whsamples = rand(
+        MvNormal(
+            wh[ind_nonzero],
+            H[ind_nonzero, ind_nonzero]
+        ),
+        n_samples
+    )
     XLtmp = copy(XL[:, ind_h])
     XLtesttmp = copy(XLtest[:, ind_h])
     βtmp = copy(β[ind_h])
