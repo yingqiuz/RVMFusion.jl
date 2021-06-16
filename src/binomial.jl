@@ -202,8 +202,8 @@ function RVM!(
     @show fit(Histogram, std(XL, dims=1)[:])
     ind_nonzero = findall(in(findall(x -> x > 1e-3, std(XL, dims=1)[:])), ind)
     ind_h = ind[ind_nonzero]
-    @show ind_h ind
-    @show ind_nonzero
+    #@show ind_h ind
+    #@show ind_nonzero
     # now for the lower quality # need a sampler
     # allocate memory
     h = ones(T, n)
@@ -216,7 +216,7 @@ function RVM!(
         ),
         n_samples
     )
-    whsamples = whsamples[ind_nonzero]
+    whsamples = whsamples[ind_nonzero, :]
     XLtmp = copy(XL[:, ind_h])
     XLtesttmp = copy(XLtest[:, ind_h])
     βtmp = copy(β[ind_h])
