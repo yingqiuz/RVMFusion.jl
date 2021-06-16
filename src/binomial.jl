@@ -208,13 +208,14 @@ function RVM!(
     h = ones(T, n)
     h[findall(iszero, t)] .= -1.0
     println("Generate posterior samples of wh...")
-    @views whsamples = rand(
+    whsamples = rand(
         MvNormal(
-            wh[ind_nonzero],
-            H[ind_nonzero, ind_nonzero]
+            wh,
+            H
         ),
         n_samples
     )
+    whsamples = whsamples[ind_nonzero]
     XLtmp = copy(XL[:, ind_h])
     XLtesttmp = copy(XLtest[:, ind_h])
     βtmp = copy(β[ind_h])
