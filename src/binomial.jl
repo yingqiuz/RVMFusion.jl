@@ -110,6 +110,7 @@ function RVM!(X::Matrix{T}, t::Vector{T}, α::Vector{T};
         )
         if incr < tol
             ProgressMeter.finish!(prog, spinner = '✓')
+            H = WoodburyInv!(αtmp, Diagonal(sqrt.(y .* (1 .- y))) * Xtmp)
             return w[ind], convert(Array{T}, Symmetric(H)), ind
         end
         #Σ = Hermitian(H) \ I
@@ -117,7 +118,7 @@ function RVM!(X::Matrix{T}, t::Vector{T}, α::Vector{T};
         #αtmp .= 1 ./ (wtmp.^2 .+ diag(H)) #(1 .- αtmp .* diag(H)) ./ (wtmp.^2)
     end
     ProgressMeter.finish!(prog, spinner = '✗')
-    warn("Not converged after $(maxiter) iterations.")
+    @warn "Not converged after $(maxiter) iterations."
 end
 
 """train only - high + low - useless for now
