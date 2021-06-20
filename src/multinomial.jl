@@ -1,46 +1,48 @@
 # multiclass
 function predict(
-    X::AbstractArray{T}, w::AbstractMatrix{T},
-    H::AbstractArray{T}, ind::AbstractArray{Int64}
+    X::AbstractMatrix{T}, w::AbstractMatrix{T},
+    H::AbstractArray{T, 3}, ind::AbstractVector{Int64}
 ) where T <: Real
     Xview = @view X[:, ind]
     K = size(w, 2)
     n = size(X, 1)
     A = Matrix{T}(undef, n, K)
-    for k ∈ 1:K
-        p = view(A, :, k)
-        p .= diag(Xview * view(H, :, :, k) * transpose(Xview))
-        p .= (1 .+ π .* p ./ 8).^(-0.5) .* (Xview * view(w, :, k))
-    end
-    return exp.(A) ./ sum(exp.(A), dims=2)
-    #p .= 1 ./ (1 .+ exp.(-1 .* p))
+    predict!(A, Xview, w, transpose(Xview), H)
+    A
 end
 
 function predict!(
-    A::AbstractMatrix{T}, X::AbstractArray{T}, w::AbstractMatrix{T},
-    H::AbstractArray{T}, ind::AbstractArray{Int64}
+    A::AbstractMatrix{T}, X::AbstractMatrix{T},
+    w::AbstractMatrix{T}, Xt::AbstractMatrix{T}, H::AbstractArray{T, 3}#, ind::AbstractVector{Int64}
 ) where T <: Real
-    Xview = @view X[:, ind]
+    #Xview = @view X[:, ind]
+    n, d = size(X)
     K = size(w, 2)
-    n = size(X, 1)
-    for k ∈ 1:K
-        p = view(A, :, k)
-        p = diag(Xview * H * transpose(Xview))
-        p .= (1 .+ π .* p ./ 8).^(-0.5) .* (Xview * view(w, :, k))
+    @inbounds for k ∈ 1:K
+        # p = view(A, :, k)
+        # p .= diag(X * view(H, :, :, k) * Xt)
+        A[:, k] .= @turbo (
+            1 .+ π .* diag(X * view(H, :, :, k) * Xt) ./ 8
+        ).^(-0.5) .* (X * view(w, :, k))
     end
-    A .= exp.(A) ./ sum(exp.(A), dims=2)
+    #@turbo for k ∈ 1:K
+    #    for i ∈ 1:n
+    #        A[i, k] = (1 + π * ? / 8) ^ (-1/2) *
+    #    end
+    #end
+    @avx A .= exp.(A) ./ sum(exp.(A), dims=2)
 end
 
 function RVM!(
-    X::Array{T}, t::Matrix{T}, α::Matrix{T},
-    method::Symbol=:block; tol=1e-5, maxiter=100000
+    X::AbstractMatrix{T}, t::AbstractMatrix{T}, α::AbstractMatrix{T};
+    tol=1e-5, maxiter=100000
 ) where T<:Real
     # Multinomial
     n = size(X, 1)
     d = size(X, 2)
     size(t, 1) == n || throw(DimensionMismatch("Sizes of X and t mismatch."))
     size(α, 1) == d || throw(DimensionMismatch("Sizes of X and initial α mismatch."))
-    K = size(unique(t), 1)  # total number of classes
+    K = size(t, 2)  # total number of classes
     size(α, 2) == K || throw(DimensionMismatch("Number of classes and size of α mismatch."))
 
     # initialise
@@ -50,43 +52,44 @@ function RVM!(
     w = ones(T, d, K) * 0.00001
     #αp = ones(T, d, K)
     A, Y, logY = (Matrix{T}(undef, n, K) for _ = 1:3)
-    #a, y = (Vector{T}(undef, n) for _ = 1:2)
-    #Xt = transpose(X)
-    #t2 = similar(t)
     for iter ∈ 2:maxiter
-        ind = unique!([item[1] for item in findall( α .< 10000)])
+        ind = unique!([item[1] for item in findall(α .< 10000)])
+        n_ind = size(ind, 1)
         αtmp = copy(α[ind, :])
         wtmp = copy(w[ind, :])
-        Xtmp = @view X[:, ind]
+        Xtmp = copy(X[:, ind])
         #copyto!(αp, α)
         llh2[iter] = Logit!(
             wtmp, αtmp, Xtmp,
             t, tol, maxiter, A, Y, logY
         )
-        for k = 1:K
+        w[ind, :] .= wtmp
+        # update α
+        @inbounds Threads.@threads for k ∈ 1:K
             # update alpha - what is y?
             #@views mul!(a, X, wtmp[:, k])
             #y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
+            α2 = view(αtmp, :, k)
+            yk = view(Y, :, k)
             WoodburyInv!(
-                view(αtmp, :, k), α[ind, k],
-                Diagonal(sqrt.(logY[:, k] .* (1 .- logY[:, k]))) * Xtmp
+                α2, α[ind, k],
+                Diagonal(sqrt.(yk .* (1 .- yk))) * Xtmp
             )
-            @views α[ind, k] .= (1 .- α[ind, k] .* αtmp[:, k]) ./ wtmp[:, k].^2
+            α[ind, k] .= @turbo (1 .- α[ind, k] .* α2) ./ view(wtmp, :, k).^2
         end
-        w[ind, :] .= wtmp
         # check convergence
         incr = abs((llh2[iter] - llh2[iter-1]) / llh2[iter-1])
         @info "iteration $iter" incr
         if incr < tol
-            H = Array{T}(undef, d, d, K)
-            for k = 1:K
-                @views H[:, :, k] .= WoodburyInv!(
-                    αtmp[:, k],
-                    Diagonal(sqrt.(logY[:, k] .* (1 .- logY[:, k]))) * X[:, ind]
+            H = Array{T}(undef, n_ind, n_ind, K)
+            @inbounds Threads.@threads for k ∈ 1:K
+                yk = view(Y, :, k)
+                H[:, :, k] .= WoodburyInv!(
+                    α[ind, k],
+                    Diagonal(sqrt.(yk .* (1 .- yk))) * Xtmp
                 )
-                #@views α[ind, k] .= (1 .- α[ind, k] .* αtmp[:, k]) ./ wtmp[:, k].^2
-                return w, H, ind
             end
+            return wtmp, H, ind
         end
     end
     @warn "Not converged after $(maxiter) steps. Results may be inaccurate."
@@ -94,9 +97,9 @@ end
 
 """train + predict"""
 function RVM!(
-    XH::Array{T}, XL::Array{T}, t::Matrix{T}, XLtest::Matrix{T},
-    α::Matrix{T}, β::Matrix{T},
-    method::Symbol=:block; tol=1e-5, maxiter=100000, n_samples=5000
+    XH::AbstractMatrix{T}, XL::AbstractMatrix{T}, t::AbstractMatrix{T},
+    XLtest::AbstractMatrix{T}, α::AbstractMatrix{T}, β::AbstractMatrix{T};
+    tol=1e-5, maxiter=100000, n_samples=2000
 ) where T<:Real
     # Multinomial
     n = size(X, 1)
@@ -114,17 +117,20 @@ function RVM!(
     n_ind = size(ind, 1)
     # initialise
     # preallocate type-II likelihood (evidence) vector
-    wh_samples = Array{T}(undef, n_ind, K, n_samples)
-    for k ∈ 1:K
-        wh_samples[:, k, :] .= rand(
-            MvNormal(
-                view(wh, ind_nonzero, k),
-                view(H, ind_nonzero, ind_nonzero, k)
-            ), n_samples
-        )
-    end
     llh2 = Vector{T}(undef, maxiter)
     fill!(llh2, -Inf)
+    # posterior of wh
+    wh_samples = Array{T}(undef, n_samples, n_ind * K)
+    Threads.@threads for k ∈ 1:K
+        wh_samples[:, ((k-1)*n_ind + 1):(k*n_ind)] .= transpose(rand(
+            MvNormal(
+                wh[ind_nonzero, k],
+                H[ind_nonzero, ind_nonzero, k]
+            ), n_samples
+        ))
+    end
+    wh_samples = reshape(transpose(wh_samples), n_ind, K, n_samples)
+    # screening
     βtmp = @view β[ind, :]
     XLtmp = @view XL[:, ind]
     XLtesttmp = @view XLtest[:, ind]
@@ -132,33 +138,36 @@ function RVM!(
     #αp = ones(T, d, K)
     #A, Y, logY = (Matrix{T}(undef, n, K) for _ = 1:3)
     for iter ∈ 2:maxiter
-        ind_l = unique!([item[1] for item in findall(αtmp .< 10000)])
+        ind_l = unique!([item[1] for item in findall(βtmp .< 10000)])
         n_ind_l = size(ind_l, 1)
         #copyto!(αp, α)
         β2 = copy(βtmp[ind_l, :])
-        @views g = eachslice(whsamples, dims=3) |>
+        XL2 = copy(XLtmp[:, ind_l])
+        g = eachslice(whsamples, dims=3) |>
         Map(
             x -> Logit(
-                x, β2, XLtmp[:, ind_l],
-                transpose(XLtmp[:, ind_l]),
+                x, β2, XL2,
+                transpose(XL2),
                 t, tol, maxiter
             )
         ) |> Broadcasting() |> Folds.sum
         g ./= n_samples
         # update β
-        @views llh[iter] = sum(g[end, :])
-        @views βtmp[ind_l, :] .=
-            (1 .- βtmp[ind_l, :] .* g[(n_ind_l+1):(end-1), :]) ./ (g[1:n_ind_l, :]).^2
+        βtmp[ind_l, :] .= @turbo
+            (1 .- β2 .* g[(n_ind_l+1):(end-1), :]) ./ g[1:n_ind_l, :].^2
         # check convergence
+        llh[iter] = sum(g[end, :])
         incr = abs((llh2[iter] - llh2[iter-1]) / llh2[iter-1])
         @info "iteration $iter" incr
         if incr < tol
-            @views g = eachslice(whsamples, dims=3) |>
+            XLtest2 = copy(XLtesttmp[:, ind_l])
+            XLtest2t = transpose(XLtest2t)
+            g = eachslice(whsamples, dims=3) |>
             Map(
                 x -> Logit(
-                    x, β2, XLtmp[:, ind_l],
-                    transpose(XLtmp[:, ind_l]),
-                    t, XLtesttmp[:, ind_l], tol, maxiter
+                    x, β2, XL2,
+                    transpose(XL2),
+                    t, XLtest2, XLtest2t, tol, maxiter
                 )
             ) |> Broadcasting() |> Folds.sum
             g ./= n_samples
@@ -169,7 +178,7 @@ function RVM!(
 end
 
 function Logit!(
-    w::AbstractMatrix{T}, α::AbstractMatrix{T}, X::AbstractArray{T},
+    w::AbstractMatrix{T}, α::AbstractMatrix{T}, X::AbstractMatrix{T},
     t::AbstractMatrix{Int64}, tol::Float64, maxiter::Int64,
     A::AbstractMatrix{T}, Y::AbstractMatrix{T}, logY::AbstractMatrix{T}
 ) where T<:Real
@@ -178,13 +187,10 @@ function Logit!(
     K = size(t, 2) # number of classes
     #dk = d * Ks
     g, wp = (similar(w) for _ = 1:2)
-    #A = Matrix{T}(undef, n, K); Y = similar(A); logY = similar(A)
-    #wp = similar(w)
-    #Δw = similar(g)
     llhp = -Inf
     mul!(A, X, w)
-    logY .= A .- log.(sum(exp.(A), dims=2))
-    Y .= exp.(logY)
+    @avx logY .= A .- log.(sum(exp.(A), dims=2))
+    @avx Y .= exp.(logY)
     r = [0.00001]  # initial step size
     for iter = 2:maxiter
         # update gradient
@@ -194,35 +200,34 @@ function Logit!(
         # update weights
         w .+= g .* r
         mul!(A, X, w)
-        logY .= A .- log.(sum(exp.(A), dims=2))
-        Y .= exp.(logY)
+        @avx logY .= A .- log.(sum(exp.(A), dims=2))
         # update likelihood
         llh = -0.5sum(α .* w .* w) + sum(t .* logY)
         while (llh - llhp < 0)  # line search
             g ./= 2
             w .= wp .+ g .* r
             mul!(A, X, w)
-            logY .= A .- log.(sum(exp.(A), dims=2))
-            Y .= exp.(logY)
+            @avx logY .= A .- log.(sum(exp.(A), dims=2))
             llh = -0.5sum(α .* w .* w) + sum(t .* logY)
         end
+        @avx Y .= exp.(logY)
         if llh - llhp < tol
             return llh
+        else
+            llhp = llh
+            # update step size
+            r .= sum((w .- wp) .* (g .- gp))
+            r .= abs.(r) ./ sum((g .- gp) .^ 2)
+            copyto!(gp, g)
         end
-        llhp = llh
-        # update step size
-        r .= sum((w .- wp) .* (g .- gp))
-        r .= abs.(r) ./ sum((g .- gp) .^ 2)
-        copyto!(gp, g)
     end
     @warn "not converged."
 end
 
 function Logit(
     wh::AbstractMatrix{T}, α::AbstractMatrix{T},
-    X::AbstractArray{T}, Xt::AbstractArray{T},
-    t::AbstractMatrix{T},
-    tol::Float64, maxiter::Int64
+    X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
+    t::AbstractMatrix{T}, tol::Float64, maxiter::Int64
 ) where T<:Real
     # need a sampler
     n, d = size(X)
@@ -230,38 +235,39 @@ function Logit(
     wp, g, gp = (similar(wh) for _ = 1:3)
     wl = copy(wh)
     A, Y, logY = (Matrix{T}(undef, n, K) for _ = 1:3)
-    mul!(A, X, wh)
-    logY .= A .- log.(sum(exp.(A), dims=2))
-    Y .= exp.(logY)
+    mul!(A, X, wl)
+    @avx logY .= A .- log.(sum(exp.(A), dims=2))
+    @avx Y .= exp.(logY)
     llhp = -Inf
     r = [0.00001]
     for iter = 2:maxiter
         # update gradient
-        copyto!(gp, g)
-        mul!(g, Xt, t .- y)
+        mul!(g, Xt, t .- Y)
         g .-= α .* wl
         #ldiv!(factorize(H), g)
         # update w
         copyto!(wp, wl)
         wl .+= g .* r
         mul!(A, X, wl)
-        logY .= A .- log.(sum(exp.(A), dims=2))
+        @avx logY .= A .- log.(sum(exp.(A), dims=2))
         llh = -0.5sum(α .* wl .* wl) + sum(t .* logY)
         while llh - llhp < 0.0
             g ./= 2
             wl .= wp .+ g .* r
             mul!(A, X, wl)
-            logY .= A .- log.(sum(exp.(A), dims=2))
+            @avx logY .= A .- log.(sum(exp.(A), dims=2))
             llh = -0.5sum(α .* wl .* wl) + sum(t .* logY)
         end
-        Y .= exp.(logY)
+        @avx Y .= exp.(logY)
         if llh - llhp < tol
-            for k ∈ 1:K
-                @views WoodburyInv!(
-                    g[:, k], α[:, k],
-                    Diagonal(sqrt.(Y[:, k] .* (1 .- Y[:, k]))) * X
+            @inbounds for k ∈ 1:K
+                yk = view(Y, :, k)
+                gk = view(g, :, k)
+                αk = view(α, :, k)
+                WoodburyInv!(
+                    gk, αk,
+                    Diagonal(sqrt.(yk .* (1 .- yk))) * X
                 )
-                #predict!(y, Xtest, wl, H, 1:d)
             end
             return vcat(
                 (wl.-wh).^2, g,
@@ -270,16 +276,17 @@ function Logit(
         else
             llhp = llh
             r .= abs(sum((wl .- wp) .* (g .- gp))) ./ sum((g .- gp) .^ 2)
+            copyto!(gp, g)
         end
     end
-    @warn "Not converged in finding the posterior of wh."
+    @warn "Not converged."
 end
 
 function Logit(
     wh::AbstractMatrix{T}, α::AbstractMatrix{T},
-    X::AbstractArray{T}, Xt::AbstractArray{T},
-    t::AbstractMatrix{T}, Xtest::AbstractArray{T},
-    tol::Float64, maxiter::Int64
+    X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
+    t::AbstractMatrix{T}, Xtest::AbstractMatrix{T},
+    Xtestt::AbstractMatrix{T}, tol::Float64, maxiter::Int64
 ) where T<:Real
     # need a sampler
     n, d = size(X)
@@ -288,44 +295,44 @@ function Logit(
     wl = copy(wh)
     A, Y, logY = (Matrix{T}(undef, n, K) for _ = 1:3)
     mul!(A, X, wh)
-    logY .= A .- log.(sum(exp.(A), dims=2))
-    Y .= exp.(logY)
+    @avx logY .= A .- log.(sum(exp.(A), dims=2))
+    @avx Y .= exp.(logY)
     llhp = -Inf
     r = [0.00001]
     for iter = 2:maxiter
         # update gradient
-        copyto!(gp, g)
-        mul!(g, Xt, t .- y)
+        mul!(g, Xt, t .- Y)
         g .-= α .* wl
-        #ldiv!(factorize(H), g)
-        # update w
         copyto!(wp, wl)
         wl .+= g .* r
         mul!(A, X, wl)
-        logY .= A .- log.(sum(exp.(A), dims=2))
+        @avx logY .= A .- log.(sum(exp.(A), dims=2))
         llh = -0.5sum(α .* wl .* wl) + sum(t .* logY)
         while llh - llhp < 0.0
             g ./= 2
             wl .= wp .+ g .* r
             mul!(A, X, wl)
-            logY .= A .- log.(sum(exp.(A), dims=2))
+            @avx logY .= A .- log.(sum(exp.(A), dims=2))
             llh = -0.5sum(α .* wl .* wl) + sum(t .* logY)
         end
-        Y .= exp.(logY)
+        @avx Y .= exp.(logY)
         if llh - llhp < tol
             H = Array{T}(undef, d, d, K)
-            for k ∈ 1:K
-                @views H[:, :, k] .= WoodburyInv!(
-                    α[:, k],
-                    Diagonal(sqrt.(Y[:, k] .* (1 .- Y[:, k]))) * X
+            @inbounds for k ∈ 1:K
+                yk = view(Y, :, k)
+                αk = view(α, :, k)
+                H[:, :, k] .= WoodburyInv!(
+                    αk,
+                    Diagonal(sqrt.(yk .* (1 .- yk))) * X
                 )
-                predict!(Y, Xtest, wl, H, 1:d)
+                predict!(Y, Xtest, wl, Xtestt, H)
             end
             return Y
         else
             llhp = llh
             r .= abs(sum((wl .- wp) .* (g .- gp))) ./ sum((g .- gp) .^ 2)
+            copyto!(gp, g)
         end
     end
-    @warn "Not converged in finding the posterior of wh."
+    @warn "Not converged."
 end
