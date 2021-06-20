@@ -2,7 +2,6 @@ function WoodburyInv!(
     g::AbstractArray{T},
     X::AbstractArray{T},
 ) where T <: Real
-
     nrow, ncol = size(X)
     if nrow < ncol
         rmul!(X, Diagonal(sqrt.(1 ./ g)))
@@ -19,7 +18,6 @@ function WoodburyInv!(
     g::AbstractArray{T},
     X::AbstractArray{T}
 ) where T <: Real
-
     nrow, ncol = size(X)
     if nrow < ncol
         rmul!(X, Diagonal(sqrt.(1 ./ g)))

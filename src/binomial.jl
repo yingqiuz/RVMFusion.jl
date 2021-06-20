@@ -1,69 +1,21 @@
 # interface
-function RVM(X::Matrix{T}, t::Vector{Int64}, α_init::Float64=1.0;
-             kw...) where T<:Real
-    n = size(X, 1)
-    d = size(X, 2)
-    size(t, 1) == n || throw(DimensionMismatch("Sizes of X and t mismatch."))
-
-    K = size(unique(t), 1)
-    if K > 2
-        α = ones(T, d, K) .* α_init
-    elseif K == 2
-        α = ones(T, d) .* α_init
-    else
-        throw(TypeError("Number of classes less than 2."))
-    end
-    RVM!(X, convert(Vector{T}, t), α; kw...)
-end
-
 function predict(
-    X::AbstractArray{T}, w::AbstractArray{T},
-    H::AbstractArray{T}, ind::AbstractArray{Int64}
+    X::AbstractMatrix{T}, w::AbstractVector{T},
+    H::AbstractMatrix{T}, ind::AbstractVector{Int64}
 ) where T <: Real
     Xview = @view X[:, ind]
-    p = diag(Xview * H * transpose(Xview))
-    p .= (1 .+ π .* p ./ 8).^(-0.5) .* (Xview * w)
-    p .= 1 ./ (1 .+ exp.(-1 .* p))
+    p = @turbo (1 .+ π .* diag(Xview * H * transpose(Xview)) ./ 8).^(-0.5) .* (Xview * w)
+    p .= @avx 1 ./ (1 .+ exp.(-1 .* p))
 end
 
 function predict!(
-    a::AbstractArray{T}, X::AbstractArray{T}, w::AbstractArray{T},
-    H::AbstractArray{T}, ind::AbstractArray{Int64}
+    a::AbstractVector{T}, X::AbstractMatrix{T}, w::AbstractVector{T},
+    Xt::AbstractMatrix{T}, H::AbstractMatrix{T}#, ind::AbstractArray{Int64}
 ) where T <: Real
-    Xview = @view X[:, ind]
-    a .= diag(Xview * H * transpose(Xview))
-    a .= (1 .+ π .* a ./ 8).^(-0.5) .* (Xview * w)
-    #n = size(a, 1)
-    #d = size(H, 1)
-    #@tturbo for k = 1:n
-    #    Xview = @view X[k, ind]
-    #    @inbounds a[k] = Xview * H * transpose(Xview)
-    #end
-    #a .*= π/8; a .+= 1.0; a .^= -0.5; a .*= view(X, :, ind) * w
-    a .= 1 ./ (1 .+ exp.(-1 .* a))
+    #Xview = @view X[:, ind]
+    a .= @turbo (1 .+ π .* diag(X * H * Xt) ./ 8).^(-0.5) .* (X * w)
+    a .= @avx 1 ./ (1 .+ exp.(-1 .* a))
     return a
-end
-
-function RVM(
-    XH::Matrix{T}, XL::Matrix{T}, t::Vector{Int64},
-    XLtest::Matrix{T}, α_init::Float64=1.0,
-    β_init::Float64=1.0; kw...
-) where T<:Real
-    n = size(XH, 1)
-    d = size(XH, 2)
-    size(t, 1) == n || throw(DimensionMismatch("Sizes of X and t mismatch."))
-
-    K = size(unique(t), 1)
-    if K > 2
-        α = ones(T, d, K) .* α_init
-        β = ones(T, d, K) .* β_init
-    elseif K == 2
-        α = ones(T, d) .* α_init
-        β = ones(T, d) .* β_init
-    else
-        throw(TypeError("Number of classes less than 2."))
-    end
-    RVM!(XH, XL, convert(Vector{T}, t), XLtest, α, β; kw...)
 end
 
 # core algorithm
@@ -200,7 +152,7 @@ function RVM!(
     # preallocate type-II likelihood (evidence) vector
     evi = Vector{T}(undef, maxiter)
     fill!(evi, -Inf)
-    @show fit(Histogram, std(XL, dims=1)[:])
+    #@show fit(Histogram, std(XL, dims=1)[:])
     ind_nonzero = findall(in(findall(x -> x > 1e-3, std(XL, dims=1)[:])), ind)
     ind_h = ind[ind_nonzero]
     #@show ind_h ind
@@ -218,10 +170,9 @@ function RVM!(
         n_samples
     )
     whsamples = whsamples[ind_nonzero, :]
-    XLtmp = copy(XL[:, ind_h])
-    XLtesttmp = copy(XLtest[:, ind_h])
-    βtmp = copy(β[ind_h])
-    βp = similar(βtmp)
+    XLtmp = view(XL, :, ind_h)
+    XLtesttmp = view(XLtest, :, ind_h)
+    βtmp = view(β, ind_h)
     #whsamples[ind_h, :] .= rand(MvNormal(wh, H), n_samples)
     prog = ProgressUnknown(
         "training on low quality data...",
@@ -231,10 +182,9 @@ function RVM!(
         # the posterior or MLE solution of wl
         ind_l = findall(βtmp .< 10000) # optional
         n_ind = size(ind_l, 1)
-        β2 = @view βtmp[ind_l]
-        XL2 = @view XLtmp[:, ind_l]
+        β2 = copy(βtmp[ind_l])
+        XL2 = copy(XLtmp[:, ind_l])
         XL2t = transpose(XL2)
-        XLtest2 = @view XLtesttmp[:, ind_l]
         #subind = 1 + (iter % 5) * 1000 : 1000 + (iter % 5) * 1000
         @views g = whsamples[ind_l, :] |> eachcol |>
         Map(
@@ -245,7 +195,7 @@ function RVM!(
         ) |> Broadcasting() |> Folds.sum
         g ./= n_samples
         evi[iter] = g[end] #+ 0.5sum(log.(β2))
-        @views β2 .= (1 .- β2 .* g[n_ind+1:2n_ind]) ./ g[1:n_ind]
+        @views βtmp[ind_l] .= (1 .- β2 .* g[n_ind+1:2n_ind]) ./ g[1:n_ind]
         #incr = maximum(abs.(βtmp .- βp) ./ abs.(βp))
         incr = abs(evi[iter] - evi[iter-1]) / abs(evi[iter-1])
         ProgressMeter.next!(
@@ -254,28 +204,30 @@ function RVM!(
         )
         if incr < tol
             ProgressMeter.finish!(prog, spinner = '✓')
-            @views g = whsamples[ind_l, :] |> eachcol |>
+            XLtest2 = copy(XLtesttmp[:, ind_l])
+            XLtest2t = transpose(XLtest2)
+            @views y = whsamples[ind_l, :] |> eachcol |>
             Map(
                 x -> Logit(
                     x, β2, XL2, XL2t, t,
-                    XLtest2, h, tol, maxiter
+                    XLtest2, XLtest2t, h, tol, maxiter
                 )
             ) |> Broadcasting() |> Folds.sum
-            g ./= n_samples
-            return g[2n_ind+1:end]
+            y ./= n_samples
+            return y
         end
-        copyto!(βp, βtmp)
+        #copyto!(βp, βtmp)
     end
     ProgressMeter.finish!(prog, spinner = '✗')
     @warn "Not converged after $(maxiter) iterations."
 end
 
 function Logit!(
-    w::AbstractArray{T}, α::AbstractArray{T},
+    w::AbstractVector{T}, α::AbstractVector{T},
     X::AbstractArray{T}, Xt::AbstractArray{T},
-    t::AbstractArray{T}, tol::Float64,
-    maxiter::Int64, a::AbstractArray{T}, h::AbstractArray{T},
-    y::AbstractArray{T}
+    t::AbstractVector{T}, tol::Float64,
+    maxiter::Int64, a::AbstractVector{T}, h::AbstractVector{T},
+    y::AbstractVector{T}
 ) where T<:Real
 
     n = size(X, 1)
@@ -298,12 +250,12 @@ function Logit!(
         copyto!(wp, w)
         w .+= g .* r
         mul!(a, X, w)
-        llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* w .^ 2)
+        @avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* w .^ 2)
         while llh - llhp < 0.0
             g ./= 2
             w .= wp .+ g .* r
             mul!(a, X, w)
-            llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* w .^ 2)
+            @avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* w .^ 2)
         end
         y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
         if llh - llhp < tol
@@ -321,55 +273,10 @@ function Logit!(
 end
 
 function Logit(
-    wh::AbstractArray{T}, α::AbstractArray{T},
-    X::AbstractArray{T}, Xt::AbstractArray{T},
-    t::AbstractArray{T}, h::AbstractArray{T},
-    tol::Float64, maxiter::Int64
-) where T<:Real
-    # need a sampler
-    n, d = size(X)
-    wp, g = (zeros(T, d) for _ = 1:2)
-    H = Matrix{T}(undef, d, d)
-    a, y = (Vector{T}(undef, n) for _ = 1:2)
-    wl = copy(wh)
-    mul!(a, X, wh)
-    llhp = -Inf; llh = -Inf
-    for iter = 2:maxiter
-        y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
-        # update Hessian
-        H .= Xt * Diagonal(y .* (1 .- y)) * X
-        add_diagonal!(H, α)
-        # update gradient
-        mul!(g, Xt, t .- y)
-        g .-= α .* wl
-        ldiv!(qr(H), g)
-        # update w
-        copyto!(wp, wl)
-        wl .+= g
-        mul!(a, X, wl)
-        llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
-        while llh - llhp < 0.0
-            g ./= 2
-            wl .= wp .+ g
-            mul!(a, X, wl)
-            llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
-        end
-        llh - llhp > tol ? llhp = llh : break
-    end
-    # last update of Hessian
-    y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
-    # update Hessian
-    H .= Xt * Diagonal(y .* (1 .- y)) * X
-    add_diagonal!(H, α)
-    ldiv!(H, qr(H), I(d))  # need to be sure
-    return vcat((wl.-wh).^2, diag(H), wl, llh+0.5logdet(H))
-end
-
-function Logit(
-    wh::AbstractArray{T}, α::AbstractArray{T},
+    wh::AbstractVector{T}, α::AbstractVector{T},
     X::AbstractArray{T}, Xt::AbstractArray{T},
     t::AbstractVector{T}, #Xtest::AbstractArray{T},
-    h::AbstractArray{T}, tol::Float64, maxiter::Int64
+    h::AbstractVector{T}, tol::Float64, maxiter::Int64
 ) where T<:Real
     # need a sampler
     n, d = size(X)
@@ -391,12 +298,12 @@ function Logit(
         copyto!(wp, wl)
         wl .+= g .* r
         mul!(a, X, wl)
-        llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
+        @avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
         while llh - llhp < 0.0
             g ./= 2
             wl .= wp .+ g .* r
             mul!(a, X, wl)
-            llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
+            @avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
         end
         y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
         if llh - llhp < tol
@@ -412,10 +319,10 @@ function Logit(
 end
 
 function Logit(
-    wh::AbstractArray{T}, α::AbstractArray{T},
+    wh::AbstractVector{T}, α::AbstractVector{T},
     X::AbstractArray{T}, Xt::AbstractArray{T},
-    t::AbstractVector{T}, Xtest::AbstractArray{T},
-    h::AbstractArray{T}, tol::Float64, maxiter::Int64
+    t::AbstractVector{T}, Xtest::AbstractArray{T}, Xtestt::AbstractArray{T},
+    h::AbstractVector{T}, tol::Float64, maxiter::Int64
 ) where T<:Real
     # need a sampler
     n, d = size(X)
@@ -437,18 +344,18 @@ function Logit(
         copyto!(wp, wl)
         wl .+= g .* r
         mul!(a, X, wl)
-        llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
+        @avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
         while llh - llhp < 0.0
             g ./= 2
             wl .= wp .+ g .* r
             mul!(a, X, wl)
-            llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
+            @avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
         end
         y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
         if llh - llhp < tol
             H = WoodburyInv!(α, Diagonal(sqrt.(y .* (1 .- y))) * X)
-            predict!(y, Xtest, wl, H, 1:d)
-            return vcat((wl.-wh).^2, diag(H), y) #, llh+0.5logdet(H))
+            predict!(y, Xtest, wl, Xtestt, H)
+            return y #, llh+0.5logdet(H))
         else
             llhp = llh
             r .= abs(sum((wl .- wp) .* (g .- gp))) ./ sum((g .- gp) .^ 2)
