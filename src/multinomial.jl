@@ -7,30 +7,35 @@ function predict(
     K = size(w, 2)
     n = size(X, 1)
     A = Matrix{T}(undef, n, K)
-    predict!(A, Xview, w, transpose(Xview), H)
-    A
+    predict!(A, Xview, w, H)
+    return A
 end
 
 function predict!(
     A::AbstractMatrix{T}, X::AbstractMatrix{T},
-    w::AbstractMatrix{T}, Xt::AbstractMatrix{T}, H::AbstractArray{T, 3}#, ind::AbstractVector{Int64}
+    w::AbstractMatrix{T}, H::AbstractArray{T, 3}#, ind::AbstractVector{Int64}
 ) where T <: Real
     #Xview = @view X[:, ind]
     n, d = size(X)
     K = size(w, 2)
-    @inbounds for k ∈ 1:K
-        # p = view(A, :, k)
-        # p .= diag(X * view(H, :, :, k) * Xt)
-        A[:, k] .= @turbo (
-            1 .+ π .* diag(X * view(H, :, :, k) * Xt) ./ 8
-        ).^(-0.5) .* (X * view(w, :, k))
-    end
-    #@turbo for k ∈ 1:K
-    #    for i ∈ 1:n
-    #        A[i, k] = (1 + π * ? / 8) ^ (-1/2) *
-    #    end
+    #@inbounds for k ∈ 1:K
+    #    # p = view(A, :, k)
+    #    # p .= diag(X * view(H, :, :, k) * Xt)
+    #    A[:, k] .= (
+    #        1 .+ π .* diag(X * view(H, :, :, k) * Xt) ./ 8
+    #    ).^(-0.5) .* (X * view(w, :, k))
     #end
+    ### using LoopVectorization
+    fill!(A, 1.)
+    @turbo for k ∈ 1:K
+        for nn ∈ 1:n, i ∈ 1:d, j ∈ 1:d
+            A[nn, k] += (π / 8) * X[nn, i] * H[i, j, k] * X[nn, j]
+        end
+    end
+    A .= A.^(-0.5)
+    A .*= X * w
     @avx A .= exp.(A) ./ sum(exp.(A), dims=2)
+    return A
 end
 
 function RVM!(
@@ -161,13 +166,13 @@ function RVM!(
         @info "iteration $iter" incr
         if incr < tol
             XLtest2 = copy(XLtesttmp[:, ind_l])
-            XLtest2t = transpose(XLtest2t)
+            #XLtest2t = transpose(XLtest2t)
             g = eachslice(whsamples, dims=3) |>
             Map(
                 x -> Logit(
                     x, β2, XL2,
                     transpose(XL2),
-                    t, XLtest2, XLtest2t, tol, maxiter
+                    t, XLtest2, tol, maxiter
                 )
             ) |> Broadcasting() |> Folds.sum
             g ./= n_samples
@@ -286,7 +291,7 @@ function Logit(
     wh::AbstractMatrix{T}, α::AbstractMatrix{T},
     X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
     t::AbstractMatrix{T}, Xtest::AbstractMatrix{T},
-    Xtestt::AbstractMatrix{T}, tol::Float64, maxiter::Int64
+    tol::Float64, maxiter::Int64
 ) where T<:Real
     # need a sampler
     n, d = size(X)
@@ -325,7 +330,7 @@ function Logit(
                     αk,
                     Diagonal(sqrt.(yk .* (1 .- yk))) * X
                 )
-                predict!(Y, Xtest, wl, Xtestt, H)
+                predict!(Y, Xtest, wl, H)
             end
             return Y
         else

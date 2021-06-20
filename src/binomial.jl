@@ -19,7 +19,7 @@ function predict!(
 end
 
 # core algorithm
-function RVM!(X::Matrix{T}, t::Vector{T}, α::Vector{T};
+function RVM!(X::AbstractMatrix{T}, t::AbstractVector{T}, α::AbstractVector{T};
               tol::Float64=1e-5, maxiter::Int64=10000) where T<:Real
     n = size(X, 1)
     d = size(X, 2)
@@ -75,8 +75,8 @@ end
 
 """train only - high + low - useless for now
 """
-function RVM!(XH::Matrix{T}, XL::Matrix{T}, t::Vector{T},
-    α::Vector{T}, β::Vector{T}; tol::Float64=1e-5,
+function RVM!(XH::AbstractMatrix{T}, XL::AbstractMatrix{T}, t::AbstractVector{T},
+    α::AbstractVector{T}, β::AbstractVector{T}; tol::Float64=1e-5,
     maxiter::Int64=10000, n_samples::Int64=1000
 ) where T<:Real
 
@@ -139,11 +139,11 @@ end
 train and predict
 """
 function RVM!(
-    XH::Matrix{T}, XL::Matrix{T}, t::Vector{T}, XLtest::Matrix{T},
-    α::Vector{T}, β::Vector{T}; tol::Float64=1e-5,
-    maxiter::Int64=10000, n_samples::Int64=2000
+    XH::AbstractMatrix{T}, XL::AbstractMatrix{T},
+    t::AbstractVector{T}, XLtest::AbstractMatrix{T},
+    α::AbstractVector{T}, β::AbstractVector{T};
+    tol::Float64=1e-5, maxiter::Int64=10000, n_samples::Int64=2000
 ) where T<:Real
-
     n, d = size(XL)
     # should add more validity checks
     size(t, 1) == n || throw(DimensionMismatch("Sizes of X and t mismatch."))
@@ -224,7 +224,7 @@ end
 
 function Logit!(
     w::AbstractVector{T}, α::AbstractVector{T},
-    X::AbstractArray{T}, Xt::AbstractArray{T},
+    X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
     t::AbstractVector{T}, tol::Float64,
     maxiter::Int64, a::AbstractVector{T}, h::AbstractVector{T},
     y::AbstractVector{T}
@@ -274,7 +274,7 @@ end
 
 function Logit(
     wh::AbstractVector{T}, α::AbstractVector{T},
-    X::AbstractArray{T}, Xt::AbstractArray{T},
+    X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
     t::AbstractVector{T}, #Xtest::AbstractArray{T},
     h::AbstractVector{T}, tol::Float64, maxiter::Int64
 ) where T<:Real
@@ -320,8 +320,8 @@ end
 
 function Logit(
     wh::AbstractVector{T}, α::AbstractVector{T},
-    X::AbstractArray{T}, Xt::AbstractArray{T},
-    t::AbstractVector{T}, Xtest::AbstractArray{T}, Xtestt::AbstractArray{T},
+    X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
+    t::AbstractVector{T}, Xtest::AbstractMatrix{T}, Xtestt::AbstractMatrix{T},
     h::AbstractVector{T}, tol::Float64, maxiter::Int64
 ) where T<:Real
     # need a sampler
