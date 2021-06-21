@@ -188,8 +188,7 @@ function RVM!(
             )
         ) |> Broadcasting() |> Folds.sum
         g ./= n_samples
-        @info "wl" g[2n_non_inf_ind+1:3n_non_inf_ind]
-        @info "wh" g[3n_non_inf_ind+1:4n_non_inf_ind]
+        @info "g" g
         # update β
         #@info "β2" β2[non_inf_ind]
         β2[non_inf_ind] .=
