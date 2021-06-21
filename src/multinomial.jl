@@ -176,7 +176,6 @@ function RVM!(
         n_ind_l = size(ind_l, 1)
         #copyto!(αp, α)
         β2 = copy(βtmp[ind_l, :])
-        @info "β2" β2
         XL2 = copy(XLtmp[:, ind_l])
         non_inf_ind = findall(x->x<1e6, β2[:])
         n_non_inf_ind = size(non_inf_ind, 1)
@@ -191,8 +190,10 @@ function RVM!(
         g ./= n_samples
         @info "g" g
         # update β
+        @info "β2" β2[non_inf_ind]
         β2[non_inf_ind] .=
             @views (1 .- β2[non_inf_ind] .* g[1+n_non_inf_ind:end-1]) ./ (g[1:n_non_inf_ind].^2)
+        @info "β2" β2[non_inf_ind]
         βtmp[ind_l, :] .= β2
         # check convergence
         llh2[iter] = g[end]
