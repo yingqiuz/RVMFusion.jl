@@ -179,7 +179,10 @@ function RVM!(
         XL2 = copy(XLtmp[:, ind_l])
         non_inf_ind = findall(x->x<1e6, β2[:])
         n_non_inf_ind = size(non_inf_ind, 1)
-        g = Logit(whsamples[ind_l, :, 1], β2, XL2, transpose(XL2), t, non_inf_ind, atol, maxiter)
+        g = Vector{T}(T, 2n_non_inf_ind+3)
+        for nn ∈ 1:n_samples
+            g .+= Logit(whsamples[ind_l, :, 1], β2, XL2, transpose(XL2), t, non_inf_ind, atol, maxiter)
+        end
         #g = eachslice(whsamples, dims=3) |>
         #Map(
         #    x -> Logit(
@@ -317,7 +320,7 @@ function Logit(
         mul!(A, X, wl)
         LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
         llh = @views -0.5sum(α[ind] .* (wl[ind]).^ 2) + sum(t .* logY)
-        @info "llh" llh
+        #@info "llh" llh
         while !(llh - llhp > 0)
             r .*= 0.8
             wl[ind] .= @views wp[ind] .+ g[ind] .* r
@@ -327,6 +330,7 @@ function Logit(
         end
         LoopVectorization.@avx Y .= exp.(logY)
         if llh - llhp < tol
+            @info "llh" llh
             @inbounds for k ∈ 1:K
                 yk = view(Y, :, k)
                 yk .= yk .* (1 .- yk)
