@@ -319,14 +319,14 @@ function Logit(
         wl[ind] .+= @views g[ind] .* r
         mul!(A, X, wl)
         LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
-        llh = @views -0.5sum(α[ind] .* (wl[ind]).^ 2) + sum(t .* logY)
+        llh = @views -0.5sum(α[ind] .* (wl[ind].- wh[ind]).^ 2) + sum(t .* logY)
         #@info "llh" llh
         while !(llh - llhp > 0)
             r .*= 0.8
             wl[ind] .= @views wp[ind] .+ g[ind] .* r
             mul!(A, X, wl)
             LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
-            llh = @views -0.5sum(α[ind] .* (wl[ind]).^ 2) + sum(t .* logY)
+            llh = @views -0.5sum(α[ind] .* (wl[ind].- wh[ind]).^ 2) + sum(t .* logY)
         end
         LoopVectorization.@avx Y .= exp.(logY)
         if llh - llhp < tol
