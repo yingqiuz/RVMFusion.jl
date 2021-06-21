@@ -7,7 +7,14 @@ function predict(
     K = size(w, 2)
     n = size(X, 1)
     A = Matrix{T}(undef, n, K)
-    predict!(A, Xview, w, H)
+    Xt = transpose(Xview)
+    @inbounds for k ∈ 1:K
+        #p = view(A, :, k)
+        # p .= diag(X * view(H, :, :, k) * Xt)
+        A[:, k] .= (
+            1 .+ π .* diag(Xview * view(H, :, :, k) * Xt) ./ 8
+        ).^(-0.5) .* (Xview * view(w, :, k))
+
     return A
 end
 
@@ -380,9 +387,10 @@ function Logit(
                     αk,
                     Diagonal(sqrt.(yk)) * X
                 )
-                predict(Xtest, wl, H, 1:d)
+                pred = Matrix{T}(undef, size(Xtest, 1), K)
+                predict!(pred, Xtest, wl, H, 1:d)
             end
-            return Y
+            return pred
         else
             llhp = llh
             r .= @views abs(sum((wl[ind] .- wp[ind]) .* (g[ind] .- gp[ind]))) / sum((g[ind] .- gp[ind]) .^ 2)
