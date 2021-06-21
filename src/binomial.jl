@@ -255,8 +255,8 @@ function Logit!(
         w .+= g .* r
         mul!(a, X, w)
         LoopVectorization.@avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* w .^ 2)
-        while llh - llhp < 0.0
-            g ./= 2
+        while !(llh - llhp > 0.)
+            r ./= 2
             w .= wp .+ g .* r
             mul!(a, X, w)
             LoopVectorization.@avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* w .^ 2)
@@ -303,8 +303,8 @@ function Logit(
         wl .+= g .* r
         mul!(a, X, wl)
         LoopVectorization.@avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
-        while llh - llhp < 0.0
-            g ./= 2
+        while !(llh - llhp > 0.)
+            r ./= 2
             wl .= wp .+ g .* r
             mul!(a, X, wl)
             LoopVectorization.@avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
@@ -349,8 +349,8 @@ function Logit(
         wl .+= g .* r
         mul!(a, X, wl)
         LoopVectorization.@avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
-        while llh - llhp < 0.0
-            g ./= 2
+        while !(llh - llhp > 0.)
+            r ./= 2
             wl .= wp .+ g .* r
             mul!(a, X, wl)
             LoopVectorization.@avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
