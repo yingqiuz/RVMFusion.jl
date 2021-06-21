@@ -261,7 +261,7 @@ function Logit!(
             mul!(a, X, w)
             LoopVectorization.@avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* w .^ 2)
         end
-        y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
+        LoopVectorization.@avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
         if llh - llhp < tol
             WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
             #H .= Xt * Diagonal(y .* (1 .- y)) * X
@@ -309,11 +309,11 @@ function Logit(
             mul!(a, X, wl)
             LoopVectorization.@avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
         end
-        y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
+        LoopVectorization.@avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
         if llh - llhp < tol
             WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
             #predict!(y, Xtest, wl, H, 1:d)
-            return vcat((wl.-wh).^2, g)#, llh+0.5logdet(H))
+            return vcat((wl.-wh).^2, g, llh)#, llh+0.5logdet(H))
         else
             llhp = llh
             r .= abs(sum((wl .- wp) .* (g .- gp))) ./ sum((g .- gp) .^ 2)
@@ -355,7 +355,7 @@ function Logit(
             mul!(a, X, wl)
             LoopVectorization.@avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
         end
-        y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
+        LoopVectorization.@avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
         if llh - llhp < tol
             H = WoodburyInv!(α, Diagonal(sqrt.(y .* (1 .- y))) * X)
             predict!(y, Xtest, wl, Xtestt, H)

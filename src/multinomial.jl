@@ -178,21 +178,24 @@ function RVM!(
         β2 = copy(βtmp[ind_l, :])
         @info "β2" β2
         XL2 = copy(XLtmp[:, ind_l])
+        non_inf_ind = findall(x->x>1e5, β2[:])
+        n_non_inf_ind = size(non_inf_ind)
         g = eachslice(whsamples, dims=3) |>
         Map(
             x -> Logit(
                 x[ind_l, :], β2, XL2,
                 transpose(XL2),
-                t, atol, maxiter
+                t, non_inf_ind, atol, maxiter
             )
         ) |> Broadcasting() |> Folds.sum
         g ./= n_samples
         @info "g" g
         # update β
-        βtmp[ind_l, :] .=
-            @views (1 .- β2 .* g[(n_ind_l+1):(end-1), :]) ./ (g[1:n_ind_l, :].^2 .+ 1e-8)
+        β2[non_inf_ind] .=
+            @views (1 .- β2[non_inf_ind] .* g[1+n_non_inf_ind : end-1]) ./ (g[1:n_non_inf_ind].^2)
+        βtmp[ind_l, :] .= β2
         # check convergence
-        llh2[iter] = sum(g[end, :])
+        llh2[iter] = g[end]
         incr = abs((llh2[iter] - llh2[iter-1]) / llh2[iter-1])
         #@info "iteration $iter" incr
         ProgressMeter.next!(
@@ -208,7 +211,7 @@ function RVM!(
                 x -> Logit(
                     x[ind_l, :], β2, XL2,
                     transpose(XL2),
-                    t, XLtest2, tol, maxiter
+                    t, XLtest2, non_inf_ind, tol, maxiter
                 )
             ) |> Broadcasting() |> Folds.sum
             g ./= n_samples
@@ -286,7 +289,8 @@ end
 function Logit(
     wh::AbstractMatrix{T}, α::AbstractMatrix{T},
     X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
-    t::AbstractMatrix{T}, tol::Float64, maxiter::Int64
+    t::AbstractMatrix{T}, ind::AbstractArray{Int64},
+    tol::Float64, maxiter::Int64
 ) where T<:Real
     # need a sampler
     n, d = size(X)
@@ -299,11 +303,11 @@ function Logit(
     LoopVectorization.@avx Y .= exp.(logY)
     llhp = -Inf
     r = [0.0001]
-    ind = findall(x -> x < 10000, α[:])
+    #ind = findall(x -> x < 10000, α[:])
     for iter = 2:maxiter
         # update gradient
         mul!(g, Xt, t .- Y)
-        g .-= @views α .* wl
+        g[ind] .-= @views α[ind] .* wl[ind]
         #ldiv!(factorize(H), g)
         # update w
         copyto!(wp, wl)
@@ -331,11 +335,16 @@ function Logit(
                     Diagonal(sqrt.(yk)) * X
                 )
             end
-            @views return vcat(
-                (wl.-wh).^2, g,
-                -0.5sum(α[ind] .* wl[ind] .* wl[ind], dims=1) .+
-                sum(t .* logY, dims=1)
-            )#, llh+0.5logdet(H))
+            #return vcat(
+            #    (wl.-wh).^2, g,
+            #    -0.5sum(α[ind] .* wl[ind] .* wl[ind], dims=1) .+
+            #    sum(t .* logY, dims=1)
+            #)#, llh+0.5logdet(H))
+            return vcat(
+                (wl[ind].-wh[ind]).^2,
+                g[ind],
+                llh
+            )
         else
             llhp = llh
             r .= @views abs(sum((wl[ind] .- wp[ind]) .* (g[ind] .- gp[ind]))) / (sum((g[ind] .- gp[ind]) .^ 2) + 1e-3)
@@ -349,7 +358,7 @@ function Logit(
     wh::AbstractMatrix{T}, α::AbstractMatrix{T},
     X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
     t::AbstractMatrix{T}, Xtest::AbstractMatrix{T},
-    tol::Float64, maxiter::Int64
+    ind::AbstractArray{Int64}, tol::Float64, maxiter::Int64
 ) where T<:Real
     # need a sampler
     n, d = size(X)
@@ -362,11 +371,11 @@ function Logit(
     LoopVectorization.@avx Y .= exp.(logY)
     llhp = -Inf
     r = [0.00001]
-    ind = findall(x -> x < 10000, α[:])
+    #ind = findall(x -> x < 10000, α[:])
     for iter = 2:maxiter
         # update gradient
         mul!(g, Xt, t .- Y)
-        g[ind] .-= α[ind] .* wl[ind]
+        g[ind] .-= @views α[ind] .* wl[ind]
         copyto!(wp, wl)
         wl[ind] .+= @views g[ind] .* r
         mul!(A, X, wl)
