@@ -49,17 +49,18 @@ function RVM!(
     size(α, 1) == d || throw(DimensionMismatch("Sizes of X and initial α mismatch."))
     K = size(t, 2)  # total number of classes
     size(α, 2) == K || throw(DimensionMismatch("Number of classes and size of α mismatch."))
-
+    ind_nonzero = findall(x -> x > 1e-3, std(X, dims=1)[:])
     # initialise
     # preallocate type-II likelihood (evidence) vector
     llh2 = Vector{T}(undef, maxiter)
     fill!(llh2, -Inf)
-    w = ones(T, d, K) * 0.00001
+    w = ones(T, d, K) .* 0.00001
     #αp = ones(T, d, K)
     A, Y, logY = (Matrix{T}(undef, n, K) for _ = 1:3)
     r = [0.0001]
     for iter ∈ 2:maxiter
-        ind = unique!([item[1] for item in findall(α .< 10000)])
+        ind_h = unique!([item[1] for item in findall(α .< 10000)])
+        ind = ind_h[findall(in(ind_nonzero), ind_h)]
         n_ind = size(ind, 1)
         αtmp = copy(α[ind, :])
         wtmp = copy(w[ind, :])
@@ -109,15 +110,15 @@ function RVM!(
     rtol=1e-5, atol=1e-7, maxiter=100000, n_samples=2000
 ) where T<:Real
     # Multinomial
-    n = size(X, 1)
-    d = size(X, 2)
+    n = size(XL, 1)
+    d = size(XL, 2)
     size(t, 1) == n || throw(DimensionMismatch("Sizes of X and t mismatch."))
     size(α, 1) == d || throw(DimensionMismatch("Sizes of X and initial α mismatch."))
     K = size(t, 2)  # total number of classes
     size(α, 2) == K || throw(DimensionMismatch("Number of classes and size of α mismatch."))
 
     wh, H, ind_h = RVM!(
-        XH, t, α, tol=tol, maxiter=maxiter
+        XH, t, α, rtol=rtol, maxiter=maxiter
     )
     ind_nonzero = findall(in(findall(x -> x > 1e-3, std(XL, dims=1)[:])), ind_h)
     ind = ind_h[ind_nonzero]
@@ -127,16 +128,16 @@ function RVM!(
     llh2 = Vector{T}(undef, maxiter)
     fill!(llh2, -Inf)
     # posterior of wh
-    wh_samples = Array{T}(undef, n_samples, n_ind * K)
+    whsamples = Array{T}(undef, n_samples, n_ind * K)
     Threads.@threads for k ∈ 1:K
-        wh_samples[:, ((k-1)*n_ind + 1):(k*n_ind)] .= transpose(rand(
+        whsamples[:, ((k-1)*n_ind + 1):(k*n_ind)] .= transpose(rand(
             MvNormal(
                 wh[ind_nonzero, k],
                 H[ind_nonzero, ind_nonzero, k]
             ), n_samples
         ))
     end
-    wh_samples = reshape(transpose(wh_samples), n_ind, K, n_samples)
+    whsamples = reshape(transpose(whsamples), n_ind, K, n_samples)
     # screening
     βtmp = @view β[ind, :]
     XLtmp = @view XL[:, ind]
@@ -153,7 +154,7 @@ function RVM!(
         g = eachslice(whsamples, dims=3) |>
         Map(
             x -> Logit(
-                x, β2, XL2,
+                x[ind_l, :], β2, XL2,
                 transpose(XL2),
                 t, atol, maxiter
             )
@@ -161,7 +162,7 @@ function RVM!(
         g ./= n_samples
         # update β
         βtmp[ind_l, :] .=
-            (1 .- β2 .* g[(n_ind_l+1):(end-1), :]) ./ g[1:n_ind_l, :].^2
+            @views (1 .- β2 .* g[(n_ind_l+1):(end-1), :]) ./ g[1:n_ind_l, :].^2
         # check convergence
         llh[iter] = sum(g[end, :])
         incr = abs((llh2[iter] - llh2[iter-1]) / llh2[iter-1])
@@ -172,7 +173,7 @@ function RVM!(
             g = eachslice(whsamples, dims=3) |>
             Map(
                 x -> Logit(
-                    x, β2, XL2,
+                    x[ind_l, :], β2, XL2,
                     transpose(XL2),
                     t, XLtest2, tol, maxiter
                 )
@@ -221,7 +222,7 @@ function Logit!(
         #@info "r * sum(g.^2) / 2" r * sum(g.^2) / 2
         while !(llh - llhp > 0) #r[1] * sum(g[ind].^2) / 2 # line search
             #g ./= 2
-            r .*= 0.5
+            r .*= 0.8
             w[ind] .= @views wp[ind] .+ g[ind] .* r
             #w .= wp .+ g .* r
             mul!(A, X, w)
@@ -239,8 +240,7 @@ function Logit!(
         else
             llhp = llh
             # update step sizeß
-            r .= @views abs(sum((w[ind] .- wp[ind]) .* (g[ind] .- gp[ind]))) /
-                 sum((g[ind] .- gp[ind]) .^ 2)
+            r .= @views abs(sum((w[ind] .- wp[ind]) .* (g[ind] .- gp[ind]))) / sum((g[ind] .- gp[ind]) .^ 2)
             #@info "r" r
             #r .= 0.00001
             copyto!(gp, g)
@@ -273,13 +273,13 @@ function Logit(
         #ldiv!(factorize(H), g)
         # update w
         copyto!(wp, wl)
-        wl[ind] .+= g[ind] .* r
+        wl[ind] .+= @views g[ind] .* r
         mul!(A, X, wl)
         LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
         llh = -0.5sum(α .* wl.* wl) + sum(t .* logY)
         while !(llh - llhp > 0)
-            r ./= 2
-            wl[ind] .= wp[ind] .+ g .* r
+            r .*= 0.8
+            wl[ind] .= @views wp[ind] .+ g[ind] .* r
             mul!(A, X, wl)
             LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
             llh = -0.5sum(α .* wl .* wl) + sum(t .* logY)
@@ -301,8 +301,7 @@ function Logit(
             )#, llh+0.5logdet(H))
         else
             llhp = llh
-            r .= @views abs(sum((wl[ind] .- wp[ind]) .* (g[ind] .- gp[ind]))) ./
-                (sum((g[ind] .- gp[ind]) .^ 2) + 1e-3)
+            r .= @views abs(sum((wl[ind] .- wp[ind]) .* (g[ind] .- gp[ind]))) / (sum((g[ind] .- gp[ind]) .^ 2) + 1e-3)
             copyto!(gp, g)
         end
     end
@@ -326,18 +325,19 @@ function Logit(
     LoopVectorization.@avx Y .= exp.(logY)
     llhp = -Inf
     r = [0.00001]
+    ind = findall(x -> x < 10000, α[:])
     for iter = 2:maxiter
         # update gradient
         mul!(g, Xt, t .- Y)
         g .-= α .* wl
         copyto!(wp, wl)
-        wl .+= g .* r
+        wl[ind] .+= @views g[ind] .* r
         mul!(A, X, wl)
         LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
         llh = -0.5sum(α .* wl .* wl) + sum(t .* logY)
         while !(llh - llhp > 0)
-            r ./= 2
-            wl .= wp .+ g .* r
+            r .*= 0.8
+            wl[ind] .= @views wp[ind] .+ g[ind] .* r
             mul!(A, X, wl)
             LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
             llh = -0.5sum(α .* wl .* wl) + sum(t .* logY)
@@ -352,12 +352,12 @@ function Logit(
                     αk,
                     Diagonal(sqrt.(yk .* (1 .- yk))) * X
                 )
-                predict!(Y, Xtest, wl, H)
+                predict(Xtest, wl, H, 1:d)
             end
             return Y
         else
             llhp = llh
-            r .= abs(sum((wl .- wp) .* (g .- gp))) ./ sum((g .- gp) .^ 2)
+            r .= @views abs(sum((wl[ind] .- wp[ind]) .* (g[ind] .- gp[ind]))) / sum((g[ind] .- gp[ind]) .^ 2)
             copyto!(gp, g)
         end
     end
