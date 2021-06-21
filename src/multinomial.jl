@@ -345,6 +345,8 @@ function Logit(
             return vcat(
                 (wl[ind].-wh[ind]).^2,
                 g[ind],
+                wl[ind],
+                wh[ind],
                 llh
             )
         else
