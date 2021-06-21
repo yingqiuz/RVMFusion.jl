@@ -190,8 +190,7 @@ function RVM!(
         @info "g" g
         # update β
         βtmp[ind_l, :] .=
-            @views (1 .- β2 .* g[(n_ind_l+1):(end-1), :]) ./ g[1:n_ind_l, :].^2
-        βtmp[findall(isinf, βtmp)] .= 1e6
+            @views (1 .- β2 .* g[(n_ind_l+1):(end-1), :]) ./ (g[1:n_ind_l, :].^2 .+ 1e-6)
         # check convergence
         llh2[iter] = sum(g[end, :])
         incr = abs((llh2[iter] - llh2[iter-1]) / llh2[iter-1])
