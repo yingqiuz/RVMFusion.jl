@@ -179,7 +179,7 @@ function RVM!(
         XL2 = copy(XLtmp[:, ind_l])
         non_inf_ind = findall(x->x<1e6, β2[:])
         n_non_inf_ind = size(non_inf_ind, 1)
-        g = Vector{T}(T, 2n_non_inf_ind+3)
+        g = Vector{T}(undef, 2n_non_inf_ind+3)
         for nn ∈ 1:n_samples
             g .+= Logit(whsamples[ind_l, :, 1], β2, XL2, transpose(XL2), t, non_inf_ind, atol, maxiter)
         end
