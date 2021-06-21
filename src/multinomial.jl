@@ -171,7 +171,7 @@ function RVM!(
         spinner=true
     )
     for iter ∈ 2:maxiter
-        ind_l = unique!([item[1] for item in findall(βtmp .< 10000)])
+        ind_l = unique!([item[1] for item in findall(βtmp .< 1e6)])
         #@info "ind_l" ind_l
         n_ind_l = size(ind_l, 1)
         #copyto!(αp, α)
@@ -343,7 +343,7 @@ function Logit(
             return vcat(
                 (wl[ind].-wh[ind]).^2,
                 g[ind],
-                [llh]
+                llh
             )
         else
             llhp = llh
