@@ -82,10 +82,11 @@ function RVM!(
             #y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
             α2 = view(αtmp, :, k)
             yk = view(Y, :, k)
+            yk .= sqrt.(yk .* (1 .- yk))
             yk[yk .< 1e-10] .= 0.
             WoodburyInv!(
                 α2, α[ind, k],
-                Diagonal(sqrt.(yk .* (1 .- yk))) * Xtmp
+                Diagonal(yk) * Xtmp
             )
             α[ind, k] .= (1 .- α[ind, k] .* α2) ./ view(wtmp, :, k).^2
         end
@@ -102,10 +103,11 @@ function RVM!(
             H = Array{T}(undef, n_ind, n_ind, K)
             @inbounds Threads.@threads for k ∈ 1:K
                 yk = view(Y, :, k)
+                yk .= sqrt.(yk .* (1 .- yk))
                 yk[yk .< 1e-10] .= 0.
                 H[:, :, k] .= WoodburyInv!(
                     α[ind, k],
-                    Diagonal(sqrt.(yk .* (1 .- yk))) * Xtmp
+                    Diagonal(yk) * Xtmp
                 )
             end
             return wtmp, H, ind
@@ -310,12 +312,13 @@ function Logit(
         if llh - llhp < tol
             @inbounds for k ∈ 1:K
                 yk = view(Y, :, k)
+                yk .= sqrt.(yk .* (1 .- yk))
                 yk[yk .< 1e-10] .= 0.
                 gk = view(g, :, k)
                 αk = view(α, :, k)
                 WoodburyInv!(
                     gk, αk,
-                    Diagonal(sqrt.(yk .* (1 .- yk))) * X
+                    Diagonal(yk) * X
                 )
             end
             return vcat(
@@ -370,11 +373,12 @@ function Logit(
             H = Array{T}(undef, d, d, K)
             @inbounds for k ∈ 1:K
                 yk = view(Y, :, k)
+                yk .= sqrt.(yk .* (1 .- yk))
                 yk[yk .< 1e-10] .= 0.
                 αk = view(α, :, k)
                 H[:, :, k] .= WoodburyInv!(
                     αk,
-                    Diagonal(sqrt.(yk .* (1 .- yk))) * X
+                    Diagonal(yk) * X
                 )
                 predict(Xtest, wl, H, 1:d)
             end
