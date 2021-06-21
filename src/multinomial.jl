@@ -178,7 +178,7 @@ function RVM!(
         β2 = copy(βtmp[ind_l, :])
         @info "β2" β2
         XL2 = copy(XLtmp[:, ind_l])
-        non_inf_ind = findall(x->x>1e5, β2[:])
+        non_inf_ind = findall(x->x<1e6, β2[:])
         n_non_inf_ind = size(non_inf_ind)
         g = eachslice(whsamples, dims=3) |>
         Map(
