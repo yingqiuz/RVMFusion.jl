@@ -179,15 +179,15 @@ function RVM!(
         XL2 = copy(XLtmp[:, ind_l])
         non_inf_ind = findall(x->x<1e6, β2[:])
         n_non_inf_ind = size(non_inf_ind, 1)
-        Logit(whsamples[ind_l, :, 1], β2, XL2, transpose(XL2), t, non_inf_ind, atol, maxiter)
-        g = eachslice(whsamples, dims=3) |>
-        Map(
-            x -> Logit(
-                x[ind_l, :], β2, XL2,
-                transpose(XL2),
-                t, non_inf_ind, atol, maxiter
-            )
-        ) |> Broadcasting() |> Folds.sum
+        g = Logit(whsamples[ind_l, :, 1], β2, XL2, transpose(XL2), t, non_inf_ind, atol, maxiter)
+        #g = eachslice(whsamples, dims=3) |>
+        #Map(
+        #    x -> Logit(
+        #        x[ind_l, :], β2, XL2,
+        #        transpose(XL2),
+        #        t, non_inf_ind, atol, maxiter
+        #    )
+        #) |> Broadcasting() |> Folds.sum
         g ./= n_samples
         @info "g" g
         # update β
