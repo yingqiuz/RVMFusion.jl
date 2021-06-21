@@ -179,7 +179,7 @@ function RVM!(
         @info "β2" β2
         XL2 = copy(XLtmp[:, ind_l])
         non_inf_ind = findall(x->x<1e6, β2[:])
-        n_non_inf_ind = size(non_inf_ind)
+        n_non_inf_ind = size(non_inf_ind, 1)
         g = eachslice(whsamples, dims=3) |>
         Map(
             x -> Logit(
@@ -192,7 +192,7 @@ function RVM!(
         @info "g" g
         # update β
         β2[non_inf_ind] .=
-            @views (1 .- β2[non_inf_ind] .* g[1+n_non_inf_ind : end-1]) ./ (g[1:n_non_inf_ind].^2)
+            @views (1 .- β2[non_inf_ind] .* g[1+n_non_inf_ind:end-1]) ./ (g[1:n_non_inf_ind].^2)
         βtmp[ind_l, :] .= β2
         # check convergence
         llh2[iter] = g[end]
