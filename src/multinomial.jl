@@ -185,6 +185,7 @@ function RVM!(
             )
         ) |> Broadcasting() |> Folds.sum
         g ./= n_samples
+        @info "g" g
         # update β
         βtmp[ind_l, :] .=
             @views (1 .- β2 .* g[(n_ind_l+1):(end-1), :]) ./ g[1:n_ind_l, :].^2
