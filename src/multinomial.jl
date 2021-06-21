@@ -27,20 +27,20 @@ function predict!(
     #end
     ### using LoopVectorization
     fill!(A, 1.)
-    @turbo for k ∈ 1:K
+    LoopVectorization.@turbo for k ∈ 1:K
         for nn ∈ 1:n, i ∈ 1:d, j ∈ 1:d
             A[nn, k] += (π / 8) * X[nn, i] * H[i, j, k] * X[nn, j]
         end
     end
     A .= A.^(-0.5)
     A .*= X * w
-    @avx A .= exp.(A) ./ sum(exp.(A), dims=2)
+    LoopVectorization.@avx A .= exp.(A) ./ sum(exp.(A), dims=2)
     return A
 end
 
 function RVM!(
     X::AbstractMatrix{T}, t::AbstractMatrix{T}, α::AbstractMatrix{T};
-    tol=1e-5, maxiter=100000
+    rtol=1e-5, atol=1e-8, maxiter=100000
 ) where T<:Real
     # Multinomial
     n = size(X, 1)
@@ -66,7 +66,7 @@ function RVM!(
         #copyto!(αp, α)
         llh2[iter] = Logit!(
             wtmp, αtmp, Xtmp,
-            t, tol, maxiter, A, Y, logY
+            t, atol, maxiter, A, Y, logY
         )
         w[ind, :] .= wtmp
         # update α
@@ -80,12 +80,13 @@ function RVM!(
                 α2, α[ind, k],
                 Diagonal(sqrt.(yk .* (1 .- yk))) * Xtmp
             )
-            α[ind, k] .= @turbo (1 .- α[ind, k] .* α2) ./ view(wtmp, :, k).^2
+            α[ind, k] .= (1 .- α[ind, k] .* α2) ./ view(wtmp, :, k).^2
         end
+        #@info "α" α[ind, :]
         # check convergence
         incr = abs((llh2[iter] - llh2[iter-1]) / llh2[iter-1])
         @info "iteration $iter" incr
-        if incr < tol
+        if incr < rtol
             H = Array{T}(undef, n_ind, n_ind, K)
             @inbounds Threads.@threads for k ∈ 1:K
                 yk = view(Y, :, k)
@@ -104,7 +105,7 @@ end
 function RVM!(
     XH::AbstractMatrix{T}, XL::AbstractMatrix{T}, t::AbstractMatrix{T},
     XLtest::AbstractMatrix{T}, α::AbstractMatrix{T}, β::AbstractMatrix{T};
-    tol=1e-5, maxiter=100000, n_samples=2000
+    rtol=1e-5, atol=1e-7, maxiter=100000, n_samples=2000
 ) where T<:Real
     # Multinomial
     n = size(X, 1)
@@ -153,18 +154,18 @@ function RVM!(
             x -> Logit(
                 x, β2, XL2,
                 transpose(XL2),
-                t, tol, maxiter
+                t, atol, maxiter
             )
         ) |> Broadcasting() |> Folds.sum
         g ./= n_samples
         # update β
-        βtmp[ind_l, :] .= @turbo
+        βtmp[ind_l, :] .=
             (1 .- β2 .* g[(n_ind_l+1):(end-1), :]) ./ g[1:n_ind_l, :].^2
         # check convergence
         llh[iter] = sum(g[end, :])
         incr = abs((llh2[iter] - llh2[iter-1]) / llh2[iter-1])
         @info "iteration $iter" incr
-        if incr < tol
+        if incr < rtol
             XLtest2 = copy(XLtesttmp[:, ind_l])
             #XLtest2t = transpose(XLtest2t)
             g = eachslice(whsamples, dims=3) |>
@@ -184,45 +185,57 @@ end
 
 function Logit!(
     w::AbstractMatrix{T}, α::AbstractMatrix{T}, X::AbstractMatrix{T},
-    t::AbstractMatrix{Int64}, tol::Float64, maxiter::Int64,
+    t::AbstractMatrix{T}, tol::Float64, maxiter::Int64,
     A::AbstractMatrix{T}, Y::AbstractMatrix{T}, logY::AbstractMatrix{T}
 ) where T<:Real
     n = size(t, 1)
     d = size(X, 2)
     K = size(t, 2) # number of classes
+    Xt = transpose(X)
+    ind = findall(x -> x < 10000, α[:])
     #dk = d * Ks
-    g, wp = (similar(w) for _ = 1:2)
+    g, wp, gp = (zeros(T, d, K) for _ = 1:3)
     llhp = -Inf
     mul!(A, X, w)
-    @avx logY .= A .- log.(sum(exp.(A), dims=2))
-    @avx Y .= exp.(logY)
-    r = [0.00001]  # initial step size
+    LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
+    LoopVectorization.@avx Y .= exp.(logY)
+    r = [0.0001]  # initial step size
     for iter = 2:maxiter
         # update gradient
         mul!(g, Xt, t .- Y)
         g .-= w .* α
+        @info "g" g[ind]
         copyto!(wp, w)
         # update weights
-        w .+= g .* r
+        w[ind] .+= @views g[ind] .* r
+        #w .+= g .* r
         mul!(A, X, w)
-        @avx logY .= A .- log.(sum(exp.(A), dims=2))
+        LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
         # update likelihood
-        llh = -0.5sum(α .* w .* w) + sum(t .* logY)
+        llh = -0.5sum(α[ind] .* w[ind] .* w[ind]) + sum(t .* logY)
+        #llh = -0.5sum(α .* w .* w) + sum(t .* logY)
+        @info "llh" llh
         while (llh - llhp < 0)  # line search
             g ./= 2
-            w .= wp .+ g .* r
+            w[ind] .= @views wp[ind] .+ g[ind] .* r
+            #w .= wp .+ g .* r
             mul!(A, X, w)
-            @avx logY .= A .- log.(sum(exp.(A), dims=2))
-            llh = -0.5sum(α .* w .* w) + sum(t .* logY)
+            LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
+            llh = -0.5sum(α[ind] .* w[ind] .* w[ind]) + sum(t .* logY)
         end
-        @avx Y .= exp.(logY)
+        #@info "w" w
+        LoopVectorization.@avx Y .= exp.(logY)
+        #@info "Y" Y
+        #@info "incr" abs((llh - llhp) / llhp)
         if llh - llhp < tol
             return llh
         else
             llhp = llh
-            # update step size
-            r .= sum((w .- wp) .* (g .- gp))
-            r .= abs.(r) ./ sum((g .- gp) .^ 2)
+            # update step sizeß
+            r .= @views abs(sum((w[ind] .- wp[ind]) .* (g[ind] .- gp[ind]))) /
+                (sum((g[ind] .- gp[ind]) .^ 2) + 1e-2)
+            @info "r" r
+            #r .= 0.00001
             copyto!(gp, g)
         end
     end
@@ -241,8 +254,8 @@ function Logit(
     wl = copy(wh)
     A, Y, logY = (Matrix{T}(undef, n, K) for _ = 1:3)
     mul!(A, X, wl)
-    @avx logY .= A .- log.(sum(exp.(A), dims=2))
-    @avx Y .= exp.(logY)
+    LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
+    LoopVectorization.@avx Y .= exp.(logY)
     llhp = -Inf
     r = [0.00001]
     for iter = 2:maxiter
@@ -254,16 +267,16 @@ function Logit(
         copyto!(wp, wl)
         wl .+= g .* r
         mul!(A, X, wl)
-        @avx logY .= A .- log.(sum(exp.(A), dims=2))
+        LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
         llh = -0.5sum(α .* wl .* wl) + sum(t .* logY)
         while llh - llhp < 0.0
             g ./= 2
             wl .= wp .+ g .* r
             mul!(A, X, wl)
-            @avx logY .= A .- log.(sum(exp.(A), dims=2))
+            LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
             llh = -0.5sum(α .* wl .* wl) + sum(t .* logY)
         end
-        @avx Y .= exp.(logY)
+        LoopVectorization.@avx Y .= exp.(logY)
         if llh - llhp < tol
             @inbounds for k ∈ 1:K
                 yk = view(Y, :, k)
@@ -300,8 +313,8 @@ function Logit(
     wl = copy(wh)
     A, Y, logY = (Matrix{T}(undef, n, K) for _ = 1:3)
     mul!(A, X, wh)
-    @avx logY .= A .- log.(sum(exp.(A), dims=2))
-    @avx Y .= exp.(logY)
+    LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
+    LoopVectorization.@avx Y .= exp.(logY)
     llhp = -Inf
     r = [0.00001]
     for iter = 2:maxiter
@@ -311,16 +324,16 @@ function Logit(
         copyto!(wp, wl)
         wl .+= g .* r
         mul!(A, X, wl)
-        @avx logY .= A .- log.(sum(exp.(A), dims=2))
+        LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
         llh = -0.5sum(α .* wl .* wl) + sum(t .* logY)
         while llh - llhp < 0.0
             g ./= 2
             wl .= wp .+ g .* r
             mul!(A, X, wl)
-            @avx logY .= A .- log.(sum(exp.(A), dims=2))
+            LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
             llh = -0.5sum(α .* wl .* wl) + sum(t .* logY)
         end
-        @avx Y .= exp.(logY)
+        LoopVectorization.@avx Y .= exp.(logY)
         if llh - llhp < tol
             H = Array{T}(undef, d, d, K)
             @inbounds for k ∈ 1:K

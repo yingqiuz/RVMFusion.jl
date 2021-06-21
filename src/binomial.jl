@@ -4,8 +4,8 @@ function predict(
     H::AbstractMatrix{T}, ind::AbstractVector{Int64}
 ) where T <: Real
     Xview = @view X[:, ind]
-    p = @turbo (1 .+ π .* diag(Xview * H * transpose(Xview)) ./ 8).^(-0.5) .* (Xview * w)
-    p .= @avx 1 ./ (1 .+ exp.(-1 .* p))
+    p = LoopVectorization.@turbo (1 .+ π .* diag(Xview * H * transpose(Xview)) ./ 8).^(-0.5) .* (Xview * w)
+    p .= LoopVectorization.@avx 1 ./ (1 .+ exp.(-1 .* p))
 end
 
 function predict!(
@@ -13,14 +13,16 @@ function predict!(
     Xt::AbstractMatrix{T}, H::AbstractMatrix{T}#, ind::AbstractArray{Int64}
 ) where T <: Real
     #Xview = @view X[:, ind]
-    a .= @turbo (1 .+ π .* diag(X * H * Xt) ./ 8).^(-0.5) .* (X * w)
-    a .= @avx 1 ./ (1 .+ exp.(-1 .* a))
+    a .= LoopVectorization.@turbo (1 .+ π .* diag(X * H * Xt) ./ 8).^(-0.5) .* (X * w)
+    a .= LoopVectorization.@avx 1 ./ (1 .+ exp.(-1 .* a))
     return a
 end
 
 # core algorithm
-function RVM!(X::AbstractMatrix{T}, t::AbstractVector{T}, α::AbstractVector{T};
-              tol::Float64=1e-5, maxiter::Int64=10000) where T<:Real
+function RVM!(
+    X::AbstractMatrix{T}, t::AbstractVector{T}, α::AbstractVector{T};
+    rtol::Float64=1e-6, atol=1e-10, maxiter::Int64=10000
+) where T<:Real
     n = size(X, 1)
     d = size(X, 2)
     size(t, 1) == n || throw(DimensionMismatch("Sizes of X and t mismatch."))
@@ -51,7 +53,7 @@ function RVM!(X::AbstractMatrix{T}, t::AbstractVector{T}, α::AbstractVector{T};
         # find posterior w - mode and hessian
         llh2[iter], g = Logit!(
             wtmp, αtmp, Xtmp, transpose(Xtmp),
-            t, tol, maxiter, a, h, y
+            t, atol, maxiter, a, h, y
         )
         #llh2[iter] += 0.5sum(log.(αtmp))
         #llh2[iter] += 0.5logdet(H)
@@ -60,7 +62,7 @@ function RVM!(X::AbstractMatrix{T}, t::AbstractVector{T}, α::AbstractVector{T};
             prog;
             showvalues = [(:iter,iter-1), (:incr,incr)]
         )
-        if incr < tol
+        if incr < rtol
             ProgressMeter.finish!(prog, spinner = '✓')
             H = WoodburyInv!(αtmp, Diagonal(sqrt.(y .* (1 .- y))) * Xtmp)
             return w[ind], convert(Array{T}, Symmetric(H)), ind
@@ -76,7 +78,7 @@ end
 """train only - high + low - useless for now
 """
 function RVM!(XH::AbstractMatrix{T}, XL::AbstractMatrix{T}, t::AbstractVector{T},
-    α::AbstractVector{T}, β::AbstractVector{T}; tol::Float64=1e-5,
+    α::AbstractVector{T}, β::AbstractVector{T}; rtol::Float64=1e-5, atol::Float64=1e-7,
     maxiter::Int64=10000, n_samples::Int64=1000
 ) where T<:Real
 
@@ -108,7 +110,7 @@ function RVM!(XH::AbstractMatrix{T}, XL::AbstractMatrix{T}, t::AbstractVector{T}
             #@inbounds results[:, i] .+= Logit(view(whsamples, ind, i),
                 #βtmp, XLtmp, XLtmpt, t, h, tol, maxiter)
         #end
-        #@tturbo for i = 1:n_samples
+        #LoopVectorization.@tturbo for i = 1:n_samples
         #    g += Logit(whsamples[ind, i], βtmp, XL[:, ind],
         #               t, h, tol, maxiter)
         #end
@@ -116,7 +118,7 @@ function RVM!(XH::AbstractMatrix{T}, XL::AbstractMatrix{T}, t::AbstractVector{T}
         #                 XLtmp, XLtmpt, t, h, tol, maxiter)
         #                 for i = 1:n_samples)
         @views g = whsamples[ind, :] |> eachcol |>
-        Map(x -> Logit(x, βtmp, XLtmp, XLtmpt, t, h, tol, maxiter)) |>
+        Map(x -> Logit(x, βtmp, XLtmp, XLtmpt, t, h, atol, maxiter)) |>
         Broadcasting() |> Folds.sum
         g ./= n_samples
         @views βtmp .= (1 - βtmp .* g[n_ind+1:2n_ind]) ./ g[1:n_ind]
@@ -127,7 +129,7 @@ function RVM!(XH::AbstractMatrix{T}, XL::AbstractMatrix{T}, t::AbstractVector{T}
         evi[iter] = g[end] + 0.5sum(log.(βtmp[βtmp .> 0]))
         incr = abs(evi[iter] - evi[iter-1]) / abs(evi[iter-1])
         println("iteration ", iter-1, ", increment is ", incr)
-        if incr < tol
+        if incr < rtol
             return wh, H, ind_h, β, g[2*n_ind+1:end-1], ind
             break
         end
@@ -142,7 +144,8 @@ function RVM!(
     XH::AbstractMatrix{T}, XL::AbstractMatrix{T},
     t::AbstractVector{T}, XLtest::AbstractMatrix{T},
     α::AbstractVector{T}, β::AbstractVector{T};
-    tol::Float64=1e-5, maxiter::Int64=10000, n_samples::Int64=2000
+    rtol::Float64=1e-5, atol::Float64=1e-7,
+    maxiter::Int64=10000, n_samples::Int64=2000
 ) where T<:Real
     n, d = size(XL)
     # should add more validity checks
@@ -190,7 +193,7 @@ function RVM!(
         Map(
             x -> Logit(
                 x, β2, XL2, XL2t, t,
-                h, tol, maxiter
+                h, atol, maxiter
             )
         ) |> Broadcasting() |> Folds.sum
         g ./= n_samples
@@ -202,7 +205,7 @@ function RVM!(
             prog;
             showvalues = [(:iter,iter-1), (:incr,incr)]
         )
-        if incr < tol
+        if incr < rtol
             ProgressMeter.finish!(prog, spinner = '✓')
             XLtest2 = copy(XLtesttmp[:, ind_l])
             XLtest2t = transpose(XLtest2)
@@ -210,7 +213,7 @@ function RVM!(
             Map(
                 x -> Logit(
                     x, β2, XL2, XL2t, t,
-                    XLtest2, XLtest2t, h, tol, maxiter
+                    XLtest2, XLtest2t, h, atol, maxiter
                 )
             ) |> Broadcasting() |> Folds.sum
             y ./= n_samples
@@ -245,17 +248,18 @@ function Logit!(
         # update gradient
         mul!(g, Xt, t .- y)
         g .-= α .* w
+        #@info "g" g
         #ldiv!(qr(H), g)
         # update w
         copyto!(wp, w)
         w .+= g .* r
         mul!(a, X, w)
-        @avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* w .^ 2)
+        LoopVectorization.@avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* w .^ 2)
         while llh - llhp < 0.0
             g ./= 2
             w .= wp .+ g .* r
             mul!(a, X, w)
-            @avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* w .^ 2)
+            LoopVectorization.@avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* w .^ 2)
         end
         y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
         if llh - llhp < tol
@@ -298,12 +302,12 @@ function Logit(
         copyto!(wp, wl)
         wl .+= g .* r
         mul!(a, X, wl)
-        @avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
+        LoopVectorization.@avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
         while llh - llhp < 0.0
             g ./= 2
             wl .= wp .+ g .* r
             mul!(a, X, wl)
-            @avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
+            LoopVectorization.@avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
         end
         y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
         if llh - llhp < tol
@@ -344,12 +348,12 @@ function Logit(
         copyto!(wp, wl)
         wl .+= g .* r
         mul!(a, X, wl)
-        @avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
+        LoopVectorization.@avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
         while llh - llhp < 0.0
             g ./= 2
             wl .= wp .+ g .* r
             mul!(a, X, wl)
-            @avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
+            LoopVectorization.@avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
         end
         y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
         if llh - llhp < tol

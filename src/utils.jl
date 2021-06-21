@@ -42,3 +42,5 @@ function add_diagonal!(X::AbstractArray{T}, d::AbstractVector{T}) where T<:Real
 end
 
 sigmoid(x) = 1 / (1 + exp(-x))
+
+softmax(x::AbstractArray) = (LoopVectorization.@avx exp.(x) ./ sum(exp.(x), dims=2))
