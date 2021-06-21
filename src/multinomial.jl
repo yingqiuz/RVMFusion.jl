@@ -82,6 +82,7 @@ function RVM!(
             #y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
             α2 = view(αtmp, :, k)
             yk = view(Y, :, k)
+            yk[yk .< 1e-10] .= 0.
             WoodburyInv!(
                 α2, α[ind, k],
                 Diagonal(sqrt.(yk .* (1 .- yk))) * Xtmp
@@ -101,6 +102,7 @@ function RVM!(
             H = Array{T}(undef, n_ind, n_ind, K)
             @inbounds Threads.@threads for k ∈ 1:K
                 yk = view(Y, :, k)
+                yk[yk .< 1e-10] .= 0.
                 H[:, :, k] .= WoodburyInv!(
                     α[ind, k],
                     Diagonal(sqrt.(yk .* (1 .- yk))) * Xtmp
@@ -308,6 +310,7 @@ function Logit(
         if llh - llhp < tol
             @inbounds for k ∈ 1:K
                 yk = view(Y, :, k)
+                yk[yk .< 1e-10] .= 0.
                 gk = view(g, :, k)
                 αk = view(α, :, k)
                 WoodburyInv!(
@@ -367,6 +370,7 @@ function Logit(
             H = Array{T}(undef, d, d, K)
             @inbounds for k ∈ 1:K
                 yk = view(Y, :, k)
+                yk[yk .< 1e-10] .= 0.
                 αk = view(α, :, k)
                 H[:, :, k] .= WoodburyInv!(
                     αk,
