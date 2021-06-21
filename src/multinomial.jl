@@ -188,12 +188,13 @@ function RVM!(
             )
         ) |> Broadcasting() |> Folds.sum
         g ./= n_samples
-        @info "g" g
+        @info "wl" g[2n_non_inf_ind+1:3n_non_inf_ind]
+        @info "wh" g[3n_non_inf_ind+1:4n_non_inf_ind]
         # update β
-        @info "β2" β2[non_inf_ind]
+        #@info "β2" β2[non_inf_ind]
         β2[non_inf_ind] .=
-            @views (1 .- β2[non_inf_ind] .* g[1+n_non_inf_ind:end-1]) ./ (g[1:n_non_inf_ind].^2)
-        @info "β2" β2[non_inf_ind]
+            @views (1 .- β2[non_inf_ind] .* g[1+n_non_inf_ind:2n_non_inf_ind]) ./ (g[1:n_non_inf_ind].^2)
+        #@info "β2" β2[non_inf_ind]
         βtmp[ind_l, :] .= β2
         # check convergence
         llh2[iter] = g[end]
