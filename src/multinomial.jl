@@ -58,6 +58,10 @@ function RVM!(
     #αp = ones(T, d, K)
     A, Y, logY = (Matrix{T}(undef, n, K) for _ = 1:3)
     r = [0.0001]
+    prog = ProgressUnknown(
+        "training on high quality data...",
+        spinner=true
+    )
     for iter ∈ 2:maxiter
         ind_h = unique!([item[1] for item in findall(α .< 10000)])
         ind = ind_h[findall(in(ind_nonzero), ind_h)]
@@ -87,8 +91,13 @@ function RVM!(
         #@info "α" α[ind, :]
         # check convergence
         incr = abs((llh2[iter] - llh2[iter-1]) / llh2[iter-1])
-        @info "iteration $iter" incr
+        #@info "iteration $iter" incr
+        ProgressMeter.next!(
+            prog;
+            showvalues = [(:iter,iter-1), (:incr,incr)]
+        )
         if incr < rtol
+            ProgressMeter.finish!(prog, spinner = '✓')
             H = Array{T}(undef, n_ind, n_ind, K)
             @inbounds Threads.@threads for k ∈ 1:K
                 yk = view(Y, :, k)
@@ -100,6 +109,7 @@ function RVM!(
             return wtmp, H, ind
         end
     end
+    ProgressMeter.finish!(prog, spinner = '✗')
     @warn "Not converged after $(maxiter) steps. Results may be inaccurate."
 end
 
@@ -145,6 +155,10 @@ function RVM!(
     #w = ones(T, d, K) * 0.00001
     #αp = ones(T, d, K)
     #A, Y, logY = (Matrix{T}(undef, n, K) for _ = 1:3)
+    prog = ProgressUnknown(
+        "training on low quality data...",
+        spinner=true
+    )
     for iter ∈ 2:maxiter
         ind_l = unique!([item[1] for item in findall(βtmp .< 10000)])
         n_ind_l = size(ind_l, 1)
@@ -166,8 +180,13 @@ function RVM!(
         # check convergence
         llh[iter] = sum(g[end, :])
         incr = abs((llh2[iter] - llh2[iter-1]) / llh2[iter-1])
-        @info "iteration $iter" incr
+        #@info "iteration $iter" incr
+        ProgressMeter.next!(
+            prog;
+            showvalues = [(:iter,iter-1), (:incr,incr)]
+        )
         if incr < rtol
+            ProgressMeter.finish!(prog, spinner = '✓')
             XLtest2 = copy(XLtesttmp[:, ind_l])
             #XLtest2t = transpose(XLtest2t)
             g = eachslice(whsamples, dims=3) |>
@@ -182,6 +201,7 @@ function RVM!(
             return g
         end
     end
+    ProgressMeter.finish!(prog, spinner = '✗')
     @warn "Not converged after $(maxiter) steps. Results may be inaccurate."
 end
 
