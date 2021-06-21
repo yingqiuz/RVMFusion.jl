@@ -172,9 +172,11 @@ function RVM!(
     )
     for iter ∈ 2:maxiter
         ind_l = unique!([item[1] for item in findall(βtmp .< 10000)])
+        @info "ind_l" ind_l
         n_ind_l = size(ind_l, 1)
         #copyto!(αp, α)
         β2 = copy(βtmp[ind_l, :])
+        @info "β2" β2
         XL2 = copy(XLtmp[:, ind_l])
         g = eachslice(whsamples, dims=3) |>
         Map(
