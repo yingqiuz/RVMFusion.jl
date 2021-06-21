@@ -344,7 +344,8 @@ function Logit(
             return vcat(
                 (wl[ind].-wh[ind]).^2,
                 g[ind],
-                [llh-llhp],
+                [-0.5sum(α[ind] .* wl[ind] .* wl[ind])],
+                [sum(t .* logY)],
                 [llh]
             )
         else
