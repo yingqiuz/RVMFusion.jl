@@ -82,11 +82,11 @@ function RVM!(
             #y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
             α2 = view(αtmp, :, k)
             yk = view(Y, :, k)
-            yk .= sqrt.(yk .* (1 .- yk))
+            yk .= yk .* (1 .- yk)
             yk[yk .< 1e-10] .= 0.
             WoodburyInv!(
                 α2, α[ind, k],
-                Diagonal(yk) * Xtmp
+                Diagonal(sqrt.(yk)) * Xtmp
             )
             α[ind, k] .= (1 .- α[ind, k] .* α2) ./ view(wtmp, :, k).^2
         end
@@ -103,11 +103,11 @@ function RVM!(
             H = Array{T}(undef, n_ind, n_ind, K)
             @inbounds Threads.@threads for k ∈ 1:K
                 yk = view(Y, :, k)
-                yk .= sqrt.(yk .* (1 .- yk))
+                yk .= yk .* (1 .- yk)
                 yk[yk .< 1e-10] .= 0.
                 H[:, :, k] .= WoodburyInv!(
                     α[ind, k],
-                    Diagonal(yk) * Xtmp
+                    Diagonal(sqrt.(yk)) * Xtmp
                 )
             end
             return wtmp, H, ind
@@ -182,7 +182,7 @@ function RVM!(
         βtmp[ind_l, :] .=
             @views (1 .- β2 .* g[(n_ind_l+1):(end-1), :]) ./ g[1:n_ind_l, :].^2
         # check convergence
-        llh[iter] = sum(g[end, :])
+        llh2[iter] = sum(g[end, :])
         incr = abs((llh2[iter] - llh2[iter-1]) / llh2[iter-1])
         #@info "iteration $iter" incr
         ProgressMeter.next!(
@@ -312,13 +312,13 @@ function Logit(
         if llh - llhp < tol
             @inbounds for k ∈ 1:K
                 yk = view(Y, :, k)
-                yk .= sqrt.(yk .* (1 .- yk))
+                yk .= yk .* (1 .- yk)
                 yk[yk .< 1e-10] .= 0.
                 gk = view(g, :, k)
                 αk = view(α, :, k)
                 WoodburyInv!(
                     gk, αk,
-                    Diagonal(yk) * X
+                    Diagonal(sqrt.(yk)) * X
                 )
             end
             return vcat(
@@ -373,12 +373,12 @@ function Logit(
             H = Array{T}(undef, d, d, K)
             @inbounds for k ∈ 1:K
                 yk = view(Y, :, k)
-                yk .= sqrt.(yk .* (1 .- yk))
+                yk .= yk .* (1 .- yk)
                 yk[yk .< 1e-10] .= 0.
                 αk = view(α, :, k)
                 H[:, :, k] .= WoodburyInv!(
                     αk,
-                    Diagonal(yk) * X
+                    Diagonal(sqrt.(yk)) * X
                 )
                 predict(Xtest, wl, H, 1:d)
             end
