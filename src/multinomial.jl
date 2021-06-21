@@ -179,6 +179,7 @@ function RVM!(
         XL2 = copy(XLtmp[:, ind_l])
         non_inf_ind = findall(x->x<1e6, β2[:])
         n_non_inf_ind = size(non_inf_ind, 1)
+        Logit(whsamples[ind_l, 1], β2, XL2, transpose(XL2), t, non_inf_ind, atol, maxiter)
         g = eachslice(whsamples, dims=3) |>
         Map(
             x -> Logit(
@@ -316,6 +317,7 @@ function Logit(
         mul!(A, X, wl)
         LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
         llh = @views -0.5sum(α[ind] .* (wl[ind] .- wh[ind]).^ 2) + sum(t .* logY)
+        @info "llh" llh
         while !(llh - llhp > 0)
             r .*= 0.8
             wl[ind] .= @views wp[ind] .+ g[ind] .* r
