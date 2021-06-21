@@ -14,7 +14,7 @@ function predict(
         A[:, k] .= (
             1 .+ π .* diag(Xview * view(H, :, :, k) * Xt) ./ 8
         ).^(-0.5) .* (Xview * view(w, :, k))
-
+    end
     return A
 end
 
