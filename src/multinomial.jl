@@ -251,7 +251,7 @@ function Logit!(
         LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
         # update likelihood
         #llh = @views -0.5sum(α[ind] .* w[ind] .* w[ind]) + sum(t .* logY)
-        llh = -0.5sum(α .* w .* w) + sum(t .* logY)
+        llh = @views -0.5sum(α[ind] .* w[ind] .* w[ind]) + sum(t .* logY)
         #@info "llh" llh
         #@info "r * sum(g.^2) / 2" r * sum(g.^2) / 2
         while !(llh - llhp > 0) #r[1] * sum(g[ind].^2) / 2 # line search
@@ -261,7 +261,7 @@ function Logit!(
             #w .= wp .+ g .* r
             mul!(A, X, w)
             LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
-            llh = @views -0.5sum(α .* w .* w) + sum(t .* logY)
+            llh = @views -0.5sum(α[ind] .* w[ind] .* w[ind]) + sum(t .* logY)
             #llh = -0.5sum(α .* w .* w) + sum(t .* logY)
         end
         #@info "w" w
@@ -298,7 +298,7 @@ function Logit(
     LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
     LoopVectorization.@avx Y .= exp.(logY)
     llhp = -Inf
-    r = [0.001]
+    r = [0.0001]
     ind = findall(x -> x < 10000, α[:])
     for iter = 2:maxiter
         # update gradient
@@ -310,13 +310,13 @@ function Logit(
         wl[ind] .+= @views g[ind] .* r
         mul!(A, X, wl)
         LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
-        llh = -0.5sum(α .* wl.* wl) + sum(t .* logY)
+        llh = @views -0.5sum(α[ind] .* wl[ind] .* wl[ind]) + sum(t .* logY)
         while !(llh - llhp > 0)
             r .*= 0.8
             wl[ind] .= @views wp[ind] .+ g[ind] .* r
             mul!(A, X, wl)
             LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
-            llh = -0.5sum(α .* wl .* wl) + sum(t .* logY)
+            llh = @views -0.5sum(α[ind] .* wl[ind] .* wl[ind]) + sum(t .* logY)
         end
         LoopVectorization.@avx Y .= exp.(logY)
         if llh - llhp < tol
@@ -331,9 +331,10 @@ function Logit(
                     Diagonal(sqrt.(yk)) * X
                 )
             end
-            return vcat(
+            @views return vcat(
                 (wl.-wh).^2, g,
-                -0.5sum(α .* wl .* wl, dims=1) .+ sum(t .* logY, dims=1)
+                -0.5sum(α[ind] .* wl[ind] .* wl[ind], dims=1) .+
+                sum(t .* logY, dims=1)
             )#, llh+0.5logdet(H))
         else
             llhp = llh
@@ -370,13 +371,13 @@ function Logit(
         wl[ind] .+= @views g[ind] .* r
         mul!(A, X, wl)
         LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
-        llh = -0.5sum(α .* wl .* wl) + sum(t .* logY)
+        llh = @views -0.5sum(α[ind] .* wl[ind] .* wl[ind]) + sum(t .* logY)
         while !(llh - llhp > 0)
             r .*= 0.8
             wl[ind] .= @views wp[ind] .+ g[ind] .* r
             mul!(A, X, wl)
             LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
-            llh = -0.5sum(α .* wl .* wl) + sum(t .* logY)
+            llh = @views -0.5sum(α[ind] .* wl[ind] .* wl[ind]) + sum(t .* logY)
         end
         LoopVectorization.@avx Y .= exp.(logY)
         if llh - llhp < tol
