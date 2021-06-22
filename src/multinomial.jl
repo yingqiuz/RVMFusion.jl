@@ -15,6 +15,7 @@ function predict(
             1 .+ π .* diag(Xview * view(H, :, :, k) * Xt) ./ 8
         ).^(-0.5) .* (Xview * view(w, :, k))
     end
+    LoopVectorization.@avx A .= exp.(A) ./ sum(exp.(A), dims=2)
     return A
 end
 
@@ -150,11 +151,13 @@ function RVM!(
     fill!(llh2, -Inf)
     # posterior of wh
     whsamples = Array{T}(undef, n_samples, n_ind * K)
+    wh =  wh[ind_nonzero, :]
+    H = H[ind_nonzero, ind_nonzero, :]
     Threads.@threads for k ∈ 1:K
         whsamples[:, ((k-1)*n_ind + 1):(k*n_ind)] .= transpose(rand(
             MvNormal(
-                wh[ind_nonzero, k],
-                H[ind_nonzero, ind_nonzero, k]
+                wh[:, k],
+                H[:, :, k]
             ), n_samples
         ))
     end
@@ -179,7 +182,12 @@ function RVM!(
         XL2 = copy(XLtmp[:, ind_l])
         non_inf_ind = findall(x->x<1e6, β2[:])
         n_non_inf_ind = size(non_inf_ind, 1)
-        g = zeros(T, 2n_non_inf_ind+3)
+        @info "n_non_inf_ind" n_non_inf_ind
+        if n_non_inf_ind == 0
+            ProgressMeter.finish!(prog, spinner = '✓')
+            return predict(XLtesttmp, wh, H, 1:n_ind)
+        end
+        g = zeros(T, 2n_non_inf_ind+1)
         for nn ∈ 1:n_samples
             g .+= Logit(whsamples[ind_l, :, 1], β2, XL2, transpose(XL2), t, non_inf_ind, atol, maxiter)
         end
@@ -202,6 +210,7 @@ function RVM!(
         # check convergence
         llh2[iter] = g[end]
         incr = abs((llh2[iter] - llh2[iter-1]) / llh2[iter-1])
+        @info "iter $(iter) incr" incr
         #@info "iteration $iter" incr
         ProgressMeter.next!(
             prog;
@@ -216,7 +225,7 @@ function RVM!(
                 x -> Logit(
                     x[ind_l, :], β2, XL2,
                     transpose(XL2),
-                    t, XLtest2, non_inf_ind, tol, maxiter
+                    t, XLtest2, non_inf_ind, atol, maxiter
                 )
             ) |> Broadcasting() |> Folds.sum
             g ./= n_samples
@@ -301,15 +310,18 @@ function Logit(
     n, d = size(X)
     K = size(t, 2) # number of classes
     wp, g, gp = (similar(wh) for _ = 1:3)
-    wl = copy(wh)
+    wl = zeros(T, d, K)
     A, Y, logY = (Matrix{T}(undef, n, K) for _ = 1:3)
-    mul!(A, X, wl)
+    mul!(A, X, wl .+ wh)
     LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
     LoopVectorization.@avx Y .= exp.(logY)
     llhp = -Inf
     r = [0.0001]
     #ind = findall(x -> x < 10000, α[:])
     for iter = 2:maxiter
+        #if iter % 100 == 0
+            #println(iter)
+        #end
         # update gradient
         mul!(g, Xt, t .- Y)
         g[ind] .-= @views α[ind] .* wl[ind]
@@ -317,18 +329,19 @@ function Logit(
         # update w
         copyto!(wp, wl)
         wl[ind] .+= @views g[ind] .* r
-        mul!(A, X, wl)
+        mul!(A, X, wl .+ wh)
         LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
-        llh = @views -0.5sum(α[ind] .* (wl[ind].- wh[ind]).^ 2) + sum(t .* logY)
+        llh = @views -0.5sum(α[ind] .* (wl[ind]).^ 2) + sum(t .* logY)
         #@info "llh" llh
         while !(llh - llhp > 0)
             r .*= 0.8
             wl[ind] .= @views wp[ind] .+ g[ind] .* r
-            mul!(A, X, wl)
+            mul!(A, X, wl .+ wh)
             LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
-            llh = @views -0.5sum(α[ind] .* (wl[ind].- wh[ind]).^ 2) + sum(t .* logY)
+            llh = @views -0.5sum(α[ind] .* (wl[ind]).^ 2) + sum(t .* logY)
         end
         LoopVectorization.@avx Y .= exp.(logY)
+        #@info "llh - llhp" llh - llhp
         if llh - llhp < tol
             @info "llh" llh
             @inbounds for k ∈ 1:K
@@ -348,10 +361,8 @@ function Logit(
             #    sum(t .* logY, dims=1)
             #)#, llh+0.5logdet(H))
             return vcat(
-                (wl[ind].-wh[ind]).^2,
+                wl[ind].^2,
                 g[ind],
-                [-0.5sum(α[ind] .* wl[ind] .* wl[ind])],
-                [sum(t .* logY)],
                 [llh]
             )
         else
@@ -373,27 +384,30 @@ function Logit(
     n, d = size(X)
     K = size(t, 2) # number of classes
     wp, g, gp = (similar(wh) for _ = 1:3)
-    wl = copy(wh)
+    wl = zeros(T, d, K)
     A, Y, logY = (Matrix{T}(undef, n, K) for _ = 1:3)
-    mul!(A, X, wh)
+    mul!(A, X, wh .+ wl)
     LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
     LoopVectorization.@avx Y .= exp.(logY)
     llhp = -Inf
     r = [0.00001]
     #ind = findall(x -> x < 10000, α[:])
     for iter = 2:maxiter
+        #if iter % 100 == 0
+            #println(iter)
+        #end
         # update gradient
         mul!(g, Xt, t .- Y)
         g[ind] .-= @views α[ind] .* wl[ind]
         copyto!(wp, wl)
         wl[ind] .+= @views g[ind] .* r
-        mul!(A, X, wl)
+        mul!(A, X, wl .+ wh)
         LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
         llh = @views -0.5sum(α[ind] .* wl[ind] .* wl[ind]) + sum(t .* logY)
         while !(llh - llhp > 0)
             r .*= 0.8
             wl[ind] .= @views wp[ind] .+ g[ind] .* r
-            mul!(A, X, wl)
+            mul!(A, X, wl .+ wh)
             LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
             llh = @views -0.5sum(α[ind] .* wl[ind] .* wl[ind]) + sum(t .* logY)
         end
@@ -409,9 +423,9 @@ function Logit(
                     αk,
                     Diagonal(sqrt.(yk)) * X
                 )
-                pred = Matrix{T}(undef, size(Xtest, 1), K)
-                predict!(pred, Xtest, wl, H, 1:d)
             end
+            pred = Matrix{T}(undef, size(Xtest, 1), K)
+            predict!(pred, Xtest, wl .+ wh, H)
             return pred
         else
             llhp = llh

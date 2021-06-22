@@ -44,3 +44,15 @@ end
 sigmoid(x) = 1 / (1 + exp(-x))
 
 softmax(x::AbstractArray) = (LoopVectorization.@avx exp.(x) ./ sum(exp.(x), dims=2))
+
+function f1(y1, y2)
+    K = unique(y2)
+    f = zeros(Float64, K)
+    for k in K
+        TP = count(y1 .== y2 .== k)
+        precision = TP / (TP + count( (y1 .== k) .& (y2 .!= k)))
+        recall = TP / (TP + count((y1 .!= k) .& (y2 .== k)))
+        f[k] = 2* precision * recall /(precision + recall)
+    end
+    f
+end
