@@ -182,25 +182,25 @@ function RVM!(
         XL2 = copy(XLtmp[:, ind_l])
         non_inf_ind = findall(x->x<1e6, β2[:])
         n_non_inf_ind = size(non_inf_ind, 1)
-        @info "n_non_inf_ind" n_non_inf_ind
+        #@info "n_non_inf_ind" n_non_inf_ind
         if n_non_inf_ind == 0
             ProgressMeter.finish!(prog, spinner = '✓')
             return predict(XLtesttmp, wh, H, 1:n_ind)
         end
-        g = zeros(T, 2n_non_inf_ind+1)
-        for nn ∈ 1:n_samples
-            g .+= Logit(whsamples[ind_l, :, 1], β2, XL2, transpose(XL2), t, non_inf_ind, atol, maxiter)
-        end
-        #g = eachslice(whsamples, dims=3) |>
-        #Map(
-        #    x -> Logit(
-        #        x[ind_l, :], β2, XL2,
-        #        transpose(XL2),
-        #        t, non_inf_ind, atol, maxiter
-        #    )
-        #) |> Broadcasting() |> Folds.sum
+        #g = zeros(T, 2n_non_inf_ind+1)
+        #for nn ∈ 1:n_samples
+        #    g .+= Logit(whsamples[ind_l, :, 1], β2, XL2, transpose(XL2), t, non_inf_ind, atol, maxiter)
+        #end
+        g = eachslice(whsamples, dims=3) |>
+        Map(
+            x -> Logit(
+                x[ind_l, :], β2, XL2,
+                transpose(XL2),
+                t, non_inf_ind, atol, maxiter
+            )
+        ) |> Broadcasting() |> Folds.sum
         g ./= n_samples
-        @info "g" g
+        #@info "g" g
         # update β
         #@info "β2" β2[non_inf_ind]
         β2[non_inf_ind] .=
@@ -309,8 +309,7 @@ function Logit(
     # need a sampler
     n, d = size(X)
     K = size(t, 2) # number of classes
-    wp, g, gp = (similar(wh) for _ = 1:3)
-    wl = zeros(T, d, K)
+    wp, wl, g, gp = (zeros(T, d, K) for _ = 1:4)
     A, Y, logY = (Matrix{T}(undef, n, K) for _ = 1:3)
     mul!(A, X, wl .+ wh)
     LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
@@ -383,8 +382,7 @@ function Logit(
     # need a sampler
     n, d = size(X)
     K = size(t, 2) # number of classes
-    wp, g, gp = (similar(wh) for _ = 1:3)
-    wl = zeros(T, d, K)
+    wp, wl, g, gp = (zeros(T, d, K) for _ = 1:4)
     A, Y, logY = (Matrix{T}(undef, n, K) for _ = 1:3)
     mul!(A, X, wh .+ wl)
     LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
