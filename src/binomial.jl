@@ -4,7 +4,7 @@ function predict(
     H::AbstractMatrix{T}, ind::AbstractVector{Int64}
 ) where T <: Real
     Xview = @view X[:, ind]
-    p = LoopVectorization.@turbo (1 .+ π .* diag(Xview * H * transpose(Xview)) ./ 8).^(-0.5) .* (Xview * w)
+    p = (1 .+ π .* diag(Xview * H * transpose(Xview)) ./ 8).^(-0.5) .* (Xview * w)
     p .= LoopVectorization.@avx 1 ./ (1 .+ exp.(-1 .* p))
 end
 
@@ -13,7 +13,7 @@ function predict!(
     Xt::AbstractMatrix{T}, H::AbstractMatrix{T}#, ind::AbstractArray{Int64}
 ) where T <: Real
     #Xview = @view X[:, ind]
-    a .= LoopVectorization.@turbo (1 .+ π .* diag(X * H * Xt) ./ 8).^(-0.5) .* (X * w)
+    a .= (1 .+ π .* diag(X * H * Xt) ./ 8).^(-0.5) .* (X * w)
     a .= LoopVectorization.@avx 1 ./ (1 .+ exp.(-1 .* a))
     return a
 end
@@ -68,73 +68,10 @@ function RVM!(
             return w[ind], convert(Array{T}, Symmetric(H)), ind
         end
         #Σ = Hermitian(H) \ I
-        αtmp .= (1 .- αtmp .* g) ./ (wtmp.^2)
         #αtmp .= 1 ./ (wtmp.^2 .+ diag(H)) #(1 .- αtmp .* diag(H)) ./ (wtmp.^2)
     end
     ProgressMeter.finish!(prog, spinner = '✗')
     @warn "Not converged after $(maxiter) iterations."
-end
-
-"""train only - high + low - useless for now
-"""
-function RVM!(XH::AbstractMatrix{T}, XL::AbstractMatrix{T}, t::AbstractVector{T},
-    α::AbstractVector{T}, β::AbstractVector{T}; rtol::Float64=1e-5, atol::Float64=1e-7,
-    maxiter::Int64=10000, n_samples::Int64=1000
-) where T<:Real
-
-    n, d = size(XL)
-    size(t, 1) == n || throw(DimensionMismatch("Sizes of X and t mismatch."))
-    size(α, 1) == d || throw(DimensionMismatch("Sizes of X and initial α mismatch."))
-
-    wh, H, ind_h = RVM!(XH, t, α; tol=tol, maxiter=maxiter)
-    H = convert(Array{T}, Symmetric(H))
-    # preallocate type-II likelihood (evidence) vector
-    evi = Vector{T}(undef, maxiter)
-    fill!(evi, -Inf)
-    # now for the lower quality # need a sampler
-    # allocate memory
-    h = ones(T, n)
-    h[findall(iszero, t)] .= -1.0
-    println("Generate posterior samples of wh...")
-    whsamples = zeros(T, d, n_samples)
-    whsamples[ind_h, :] .= rand(MvNormal(wh, H), n_samples)
-    for iter = 2:maxiter
-        # the posterior or MLE solution of wl
-        ind = findall(1 ./ β .> tol) # optional
-        n_ind = size(ind, 1)
-        βtmp = @view β[ind]
-        XLtmp = @view XL[:, ind]
-        XLtmpt = transpose(XLtmp)
-        #results = Vector{Float64}(undef, n_ind*3 + 1)
-        #Threads.@threads for i = 1:n_samples
-            #@inbounds results[:, i] .+= Logit(view(whsamples, ind, i),
-                #βtmp, XLtmp, XLtmpt, t, h, tol, maxiter)
-        #end
-        #LoopVectorization.@tturbo for i = 1:n_samples
-        #    g += Logit(whsamples[ind, i], βtmp, XL[:, ind],
-        #               t, h, tol, maxiter)
-        #end
-        #g = ThreadsX.sum(Logit(view(whsamples[ind, i]), βtmp,
-        #                 XLtmp, XLtmpt, t, h, tol, maxiter)
-        #                 for i = 1:n_samples)
-        @views g = whsamples[ind, :] |> eachcol |>
-        Map(x -> Logit(x, βtmp, XLtmp, XLtmpt, t, h, atol, maxiter)) |>
-        Broadcasting() |> Folds.sum
-        g ./= n_samples
-        @views βtmp .= (1 - βtmp .* g[n_ind+1:2n_ind]) ./ g[1:n_ind]
-        #for k = 1:n_ind
-        #    @inbounds βtmp[k] = (1 - βtmp[k] * g[k+n_ind]) / g[k]
-        #end
-        # check convergence
-        evi[iter] = g[end] + 0.5sum(log.(βtmp[βtmp .> 0]))
-        incr = abs(evi[iter] - evi[iter-1]) / abs(evi[iter-1])
-        println("iteration ", iter-1, ", increment is ", incr)
-        if incr < rtol
-            return wh, H, ind_h, β, g[2*n_ind+1:end-1], ind
-            break
-        end
-    end
-    warn("Not converged. Results may be inaccurate.")
 end
 
 """
@@ -223,6 +160,7 @@ function RVM!(
     end
     ProgressMeter.finish!(prog, spinner = '✗')
     @warn "Not converged after $(maxiter) iterations."
+    return [NaN]
 end
 
 function Logit!(
@@ -266,7 +204,8 @@ function Logit!(
             WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
             #H .= Xt * Diagonal(y .* (1 .- y)) * X
             #add_diagonal!(H, α)
-            return llh, g
+            α .= (1 .- α .* g) ./ (w.^2)
+            return llh
         end
         r .= sum((w .- wp) .* (g .- gp))
         r .= abs.(r) ./ sum((g .- gp) .^ 2)
@@ -274,6 +213,7 @@ function Logit!(
         copyto!(gp, g)
     end
     @warn "Not converged in finding the posterior of wh."
+    return NaN
 end
 
 function Logit(
@@ -284,13 +224,13 @@ function Logit(
 ) where T<:Real
     # need a sampler
     n, d = size(X)
-    wp, g, gp = (zeros(T, d) for _ = 1:3)
+    wp, wl, g, gp = (zeros(T, d) for _ = 1:4)
     #H = Matrix{T}(undef, d, d)
     a, y = (Vector{T}(undef, n) for _ = 1:2)
-    wl = copy(wh)
+    #wl = copy(wh)
     mul!(a, X, wh)
     llhp = -Inf; llh = -Inf
-    y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
+    LoopVectorization.@avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
     r = [0.00001]
     for iter = 2:maxiter
         # update gradient
@@ -301,25 +241,26 @@ function Logit(
         # update w
         copyto!(wp, wl)
         wl .+= g .* r
-        mul!(a, X, wl)
+        mul!(a, X, wl .+ wh)
         LoopVectorization.@avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
         while !(llh - llhp > 0.)
             r ./= 2
             wl .= wp .+ g .* r
-            mul!(a, X, wl)
+            mul!(a, X, wl .+ wh)
             LoopVectorization.@avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
         end
         LoopVectorization.@avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
         if llh - llhp < tol
             WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
             #predict!(y, Xtest, wl, H, 1:d)
-            return vcat((wl.-wh).^2, g, llh)#, llh+0.5logdet(H))
+            return vcat(wl.^2, g, llh)#, llh+0.5logdet(H))
         else
             llhp = llh
             r .= abs(sum((wl .- wp) .* (g .- gp))) ./ sum((g .- gp) .^ 2)
         end
     end
     @warn "Not converged in finding the posterior of wh."
+    return zeros(T, 2d+1)
 end
 
 function Logit(
@@ -330,14 +271,15 @@ function Logit(
 ) where T<:Real
     # need a sampler
     n, d = size(X)
-    wp, g, gp = (zeros(T, d) for _ = 1:3)
+    wp, g, gp, wl = (zeros(T, d) for _ = 1:4)
     #H = Matrix{T}(undef, d, d)
     a, y = (Vector{T}(undef, n) for _ = 1:2)
-    wl = copy(wh)
+    #wl = copy(wh)
     mul!(a, X, wh)
     llhp = -Inf; llh = -Inf
-    y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
+    LoopVectorization.@avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
     r = [0.00001]
+    pred = zeros(T, size(Xtest, 1))
     for iter = 2:maxiter
         # update gradient
         copyto!(gp, g)
@@ -347,23 +289,24 @@ function Logit(
         # update w
         copyto!(wp, wl)
         wl .+= g .* r
-        mul!(a, X, wl)
+        mul!(a, X, wl .+ wh)
         LoopVectorization.@avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
         while !(llh - llhp > 0.)
             r ./= 2
             wl .= wp .+ g .* r
-            mul!(a, X, wl)
+            mul!(a, X, wl .+ wh)
             LoopVectorization.@avx llh = -sum(log1p.(exp.(-h .* a))) - 0.5sum(α .* wl .^ 2)
         end
         LoopVectorization.@avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
         if llh - llhp < tol
             H = WoodburyInv!(α, Diagonal(sqrt.(y .* (1 .- y))) * X)
-            predict!(y, Xtest, wl, Xtestt, H)
-            return y #, llh+0.5logdet(H))
+            predict!(pred, Xtest, wl .+ wh, Xtestt, H)
+            return pred #, llh+0.5logdet(H))
         else
             llhp = llh
             r .= abs(sum((wl .- wp) .* (g .- gp))) ./ sum((g .- gp) .^ 2)
         end
     end
     @warn "Not converged in finding the posterior of wh."
+    return pred
 end

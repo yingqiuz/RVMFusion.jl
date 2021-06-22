@@ -342,7 +342,7 @@ function Logit(
         LoopVectorization.@avx Y .= exp.(logY)
         #@info "llh - llhp" llh - llhp
         if llh - llhp < tol
-            @info "llh" llh
+            #@info "llh" llh
             @inbounds for k ∈ 1:K
                 yk = view(Y, :, k)
                 yk .= yk .* (1 .- yk)

@@ -47,7 +47,7 @@ softmax(x::AbstractArray) = (LoopVectorization.@avx exp.(x) ./ sum(exp.(x), dims
 
 function f1(y1, y2)
     K = unique(y2)
-    f = zeros(Float64, K)
+    f = zeros(Float64, size(K, 1))
     for k in K
         TP = count(y1 .== y2 .== k)
         precision = TP / (TP + count( (y1 .== k) .& (y2 .!= k)))

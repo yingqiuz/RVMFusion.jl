@@ -4,7 +4,7 @@ using Statistics, LinearAlgebra, StatsBase, Distributions
 using ThreadsX, Transducers, Folds, ProgressMeter
 import LoopVectorization
 
-export RVM, RVM!, sigmoid, softmax
+export RVM, RVM!, sigmoid, softmax, f1
 
 include("utils.jl")
 include("binomial.jl")
