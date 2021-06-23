@@ -51,7 +51,7 @@ function RVM!(
         n_ind = size(ind, 1)
         #H = Matrix{T}(undef, n_ind, n_ind)
         # find posterior w - mode and hessian
-        llh2[iter], g = Logit!(
+        llh2[iter] = Logit!(
             wtmp, αtmp, Xtmp, transpose(Xtmp),
             t, atol, maxiter, a, h, y
         )
@@ -88,7 +88,7 @@ function RVM!(
     # should add more validity checks
     size(t, 1) == n || throw(DimensionMismatch("Sizes of X and t mismatch."))
     size(α, 1) == d || throw(DimensionMismatch("Sizes of X and initial α mismatch."))
-    wh, H, ind = RVM!(XH, t, α; tol=tol, maxiter=maxiter)
+    wh, H, ind = RVM!(XH, t, α; rtol=rtol, atol=atol, maxiter=maxiter)
     # preallocate type-II likelihood (evidence) vector
     evi = Vector{T}(undef, maxiter)
     fill!(evi, -Inf)
