@@ -21,7 +21,7 @@ end
 # core algorithm
 function RVM!(
     X::AbstractMatrix{T}, t::AbstractVector{T}, α::AbstractVector{T};
-    rtol::Float64=1e-6, atol=1e-10, maxiter::Int64=10000
+    rtol::Float64=1e-6, atol=1e-8, maxiter::Int64=10000
 ) where T<:Real
     n = size(X, 1)
     d = size(X, 2)
@@ -55,7 +55,7 @@ function RVM!(
             wtmp, αtmp, Xtmp, transpose(Xtmp),
             t, atol, maxiter, a, h, y
         )
-        #llh2[iter] += 0.5sum(log.(αtmp)) - 0.5 * n_ind * log(2π)
+        llh2[iter] -= 0.5 * n_ind * log(2π)
         #llh2[iter] += 0.5logdet(H)
         incr = abs(llh2[iter] - llh2[iter-1]) / abs(llh2[iter-1])
         ProgressMeter.next!(
@@ -81,7 +81,7 @@ function RVM!(
     XH::AbstractMatrix{T}, XL::AbstractMatrix{T},
     t::AbstractVector{T}, XLtest::AbstractMatrix{T},
     α::AbstractVector{T}, β::AbstractVector{T};
-    rtol::Float64=1e-5, atol::Float64=1e-7,
+    rtol::Float64=1e-6, atol::Float64=1e-8,
     maxiter::Int64=10000, n_samples::Int64=2000
 ) where T<:Real
     n, d = size(XL)
@@ -202,6 +202,7 @@ function Logit!(
         end
         LoopVectorization.@avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
         if llh - llhp < tol
+            llh += 0.5sum(log.(α))
             WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
             #H .= Xt * Diagonal(y .* (1 .- y)) * X
             #add_diagonal!(H, α)
