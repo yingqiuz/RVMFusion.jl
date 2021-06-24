@@ -120,6 +120,7 @@ function RVM!(
                     Diagonal(sqrt.(yk)) * Xtmp
                 )
             end
+            print("done.")
             return wtmp, H, ind
         end
     end
@@ -239,6 +240,7 @@ function RVM!(
                 )
             ) |> Broadcasting() |> Folds.sum
             g ./= n_samples
+            println("done.")
             return g
         end
     end

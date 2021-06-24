@@ -65,6 +65,7 @@ function RVM!(
         if incr < rtol
             ProgressMeter.finish!(prog, spinner = '✓')
             H = WoodburyInv!(αtmp, Diagonal(sqrt.(y .* (1 .- y))) * Xtmp)
+            println("done.")
             return w[ind], convert(Array{T}, Symmetric(H)), ind
         end
         #Σ = Hermitian(H) \ I
@@ -155,6 +156,7 @@ function RVM!(
                 )
             ) |> Broadcasting() |> Folds.sum
             y ./= n_samples
+            println("done.")
             return y
         end
         #copyto!(βp, βtmp)
