@@ -222,7 +222,7 @@ function RVM!(
             prog;
             showvalues = [(:iter,iter-1), (:incr,incr)]
         )
-        @info "β2" β2[non_inf_ind]
+        #@info "β2" β2[non_inf_ind]
         #@info "incr" incr
         #@info "llh" llh2[iter]
         #@info "βtmp" βtmp
@@ -354,7 +354,7 @@ function Logit(
         LoopVectorization.@avx Y .= exp.(logY)
         #@info "llh - llhp" llh - llhp
         if llh - llhp < tol
-            @info "llh" llh
+            #@info "llh" llh
             #@info "g" g
             #@info "Y" Y
             @inbounds for k ∈ 1:K
