@@ -48,7 +48,7 @@ end
 
 function RVM!(
     X::AbstractMatrix{T}, t::AbstractMatrix{T}, α::AbstractMatrix{T};
-    rtol=1e-5, atol=1e-8, maxiter=100000
+    rtol=1e-6, atol=1e-6, maxiter=100000
 ) where T<:Real
     # Multinomial
     n = size(X, 1)
@@ -131,7 +131,7 @@ end
 function RVM!(
     XH::AbstractMatrix{T}, XL::AbstractMatrix{T}, t::AbstractMatrix{T},
     XLtest::AbstractMatrix{T}, α::AbstractMatrix{T}, β::AbstractMatrix{T};
-    rtol=1e-6, atol=1e-8, maxiter=100000, n_samples=2000
+    rtol=1e-6, atol=1e-6, maxiter=100000, n_samples=2000
 ) where T<:Real
     # Multinomial
     n = size(XL, 1)

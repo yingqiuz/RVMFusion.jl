@@ -21,7 +21,7 @@ end
 # core algorithm
 function RVM!(
     X::AbstractMatrix{T}, t::AbstractVector{T}, α::AbstractVector{T};
-    rtol::Float64=1e-6, atol=1e-8, maxiter::Int64=10000
+    rtol::Float64=1e-6, atol=1e-6, maxiter::Int64=10000
 ) where T<:Real
     n = size(X, 1)
     d = size(X, 2)
@@ -81,7 +81,7 @@ function RVM!(
     XH::AbstractMatrix{T}, XL::AbstractMatrix{T},
     t::AbstractVector{T}, XLtest::AbstractMatrix{T},
     α::AbstractVector{T}, β::AbstractVector{T};
-    rtol::Float64=1e-6, atol::Float64=1e-8,
+    rtol::Float64=1e-6, atol::Float64=1e-6,
     maxiter::Int64=10000, n_samples::Int64=2000
 ) where T<:Real
     n, d = size(XL)
