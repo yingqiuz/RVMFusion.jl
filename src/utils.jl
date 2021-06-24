@@ -26,8 +26,9 @@ function WoodburyInv!(
         #rmul!(X, Diagonal(sqrt.(1 ./ g)))
         #return Diagonal(1 ./ g) - X' * inv!(C) * X
     else
-        return d .= diag(LinearAlgebra.inv!(cholesky!(Hermitian(Diagonal(g) + X' * X))))  # \ I(ncol)
+        d .= diag(LinearAlgebra.inv!(cholesky!(Hermitian(Diagonal(g) + X' * X))))  # \ I(ncol)
     end
+    d
 end
 
 function add_diagonal!(X::AbstractArray{T}, d::AbstractVector{T}) where T<:Real

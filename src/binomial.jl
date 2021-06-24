@@ -55,7 +55,7 @@ function RVM!(
             wtmp, αtmp, Xtmp, transpose(Xtmp),
             t, atol, maxiter, a, h, y
         )
-        #llh2[iter] += 0.5sum(log.(αtmp))
+        #llh2[iter] += 0.5sum(log.(αtmp)) - 0.5 * n_ind * log(2π)
         #llh2[iter] += 0.5logdet(H)
         incr = abs(llh2[iter] - llh2[iter-1]) / abs(llh2[iter-1])
         ProgressMeter.next!(
@@ -134,7 +134,7 @@ function RVM!(
             )
         ) |> Broadcasting() |> Folds.sum
         g ./= n_samples
-        evi[iter] = g[end] #+ 0.5sum(log.(β2))
+        evi[iter] = g[end] + 0.5sum(log.(β2)) - 0.5n_ind * log(2π)
         @views βtmp[ind_l] .= (1 .- β2 .* g[n_ind+1:2n_ind]) ./ g[1:n_ind]
         #incr = maximum(abs.(βtmp .- βp) ./ abs.(βp))
         incr = abs(evi[iter] - evi[iter-1]) / abs(evi[iter-1])
@@ -142,6 +142,7 @@ function RVM!(
             prog;
             showvalues = [(:iter,iter-1), (:incr,incr)]
         )
+        #@info "llh2" evi[iter]
         if incr < rtol
             ProgressMeter.finish!(prog, spinner = '✓')
             XLtest2 = copy(XLtesttmp[:, ind_l])

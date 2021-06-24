@@ -1,7 +1,7 @@
 #  RVM for lower quality data
 module RVMFusion
 using Statistics, LinearAlgebra, StatsBase, Distributions
-using ThreadsX, Transducers, Folds, ProgressMeter
+using ThreadsX, Transducers, Folds, ProgressMeter#], JuliaInterpreter
 import LoopVectorization
 
 export RVM, RVM!, sigmoid, softmax, f1
