@@ -82,8 +82,8 @@ function RVM!(
             wtmp, αtmp, Xtmp,
             t, atol, maxiter, A, Y, logY, r
         )
-        LoopVectorization.@avx llh2[iter] += 0.5sum(log.(αtmp))
-        llh2[iter] -= 0.5 * n_ind * log(2π)
+        #LoopVectorization.@avx llh2[iter] += 0.5sum(log.(αtmp))
+        #llh2[iter] -= 0.5 * n_ind * log(2π)
         w[ind, :] .= wtmp
         # update α
         @inbounds Threads.@threads for k ∈ 1:K
@@ -206,8 +206,8 @@ function RVM!(
         #@info "g" g
         # update β
         #@info "β2" β2[non_inf_ind]
-        llh2[iter] = g[end] - 0.5 * n_non_inf_ind * log(2π)
-        llh2[iter] += LoopVectorization.@avx 0.5sum(log.(view(β2, non_inf_ind)))
+        llh2[iter] = g[end]# - 0.5 * n_non_inf_ind * log(2π)
+        #llh2[iter] += LoopVectorization.@avx 0.5sum(log.(view(β2, non_inf_ind)))
         β2[non_inf_ind] .=
             (1 .- β2[non_inf_ind] .* view(g, 1+n_non_inf_ind:2n_non_inf_ind)) ./
             view(g, 1:n_non_inf_ind)
