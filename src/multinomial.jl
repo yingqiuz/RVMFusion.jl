@@ -102,7 +102,7 @@ function RVM!(
         end
         #@info "α" α[ind, :]
         # check convergence
-        incr = abs((llh2[iter] - llh2[iter-1]) / llh2[iter-1])
+        incr = (llh2[iter] - llh2[iter-1]) / llh2[iter-1]
         #@info "iteration $iter" incr
         ProgressMeter.next!(
             prog;
@@ -206,8 +206,8 @@ function RVM!(
         #@info "g" g
         # update β
         #@info "β2" β2[non_inf_ind]
-        llh2[iter] = g[end]# - 0.5 * n_non_inf_ind * log(2π)
-        #llh2[iter] += LoopVectorization.@avx 0.5sum(log.(view(β2, non_inf_ind)))
+        llh2[iter] = g[end] - 0.5 * n_non_inf_ind * log(2π)
+        llh2[iter] += LoopVectorization.@avx 0.5sum(log.(view(β2, non_inf_ind)))
         β2[non_inf_ind] .=
             (1 .- β2[non_inf_ind] .* view(g, 1+n_non_inf_ind:2n_non_inf_ind)) ./
             view(g, 1:n_non_inf_ind)
@@ -215,7 +215,7 @@ function RVM!(
         #@info "wl.^2" g[1:n_non_inf_ind]
         #βtmp[ind_l, :] .= @views (1 .- β2.*g[n_ind_l+1:2n_ind_l, :]) ./ g[1:n_ind_l, :]
         # check convergence
-        incr = abs((llh2[iter] - llh2[iter-1]) / llh2[iter-1])
+        incr = (llh2[iter] - llh2[iter-1]) / llh2[iter-1]
         #@info "iter $(iter) incr" incr
         #@info "iteration $iter" incr
         ProgressMeter.next!(
@@ -226,7 +226,7 @@ function RVM!(
         #@info "incr" incr
         #@info "llh" llh2[iter]
         #@info "βtmp" βtmp
-        if incr < rtol
+        if abs(incr) < rtol
             ProgressMeter.finish!(prog, spinner = '✓')
             XLtest2 = copy(XLtesttmp[:, ind_l])
             #XLtest2t = transpose(XLtest2t)
