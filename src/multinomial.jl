@@ -190,7 +190,7 @@ function RVM!(
         XL2 = copy(XLtmp[:, ind_l])
         non_inf_ind = findall(x->x<(1/rtol), β2[:])
         n_non_inf_ind = size(non_inf_ind, 1)
-        @info "n_non_inf_ind" n_non_inf_ind
+        #@info "n_non_inf_ind" n_non_inf_ind
         g = zeros(T, 2n_non_inf_ind + 1)
         #for nn ∈ 1:n_samples
         #    g .+= Logit(whsamples[ind_l, :, nn], β2, XL2, transpose(XL2), t, non_inf_ind, atol, maxiter)
@@ -207,8 +207,8 @@ function RVM!(
         #@info "g" g
         # update β
         #@info "β2" β2[non_inf_ind]
-        llh2[iter] = g[end] - 0.5 * n_non_inf_ind * log(2π)
-        llh2[iter] += LoopVectorization.@avx 0.5sum(log.(view(β2, non_inf_ind)))
+        llh2[iter] = g[end] - 0.5 * n_ind_l * K * log(2π)
+        llh2[iter] += LoopVectorization.@avx 0.5sum(log.(β2))
         β2[non_inf_ind] .=
             (1 .- β2[non_inf_ind] .* view(g, 1+n_non_inf_ind:2n_non_inf_ind)) ./
             view(g, 1:n_non_inf_ind)
@@ -299,7 +299,7 @@ function Logit!(
         #@info "Y" Y
         #@info "incr" llh - llhp
         if llh - llhp < tol
-            return llh #+ 0.5sum(log.(α[ind]))
+            return llh + 0.5sum(log.(α[ind])) - 0.5* size(ind, 1)*log(2π)
         else
             llhp = llh
             # update step sizeß
@@ -345,13 +345,13 @@ function Logit(
         wl[ind] .+= @views g[ind] .* r
         mul!(A, X, wl .+ wh)
         LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
-        llh = -0.5sum(α[ind] .* (wl[ind]).^ 2) + sum(t .* logY) #+ 0.5sum(log.(α))
+        llh = -0.5sum(α .* (wl).^ 2) + sum(t .* logY) #+ 0.5sum(log.(α))
         while !(llh - llhp > 0)
             r .*= 0.8
             wl .= wp .+ g .* r
             mul!(A, X, wl .+ wh)
             LoopVectorization.@avx logY .= A .- log.(sum(exp.(A), dims=2))
-            llh = -0.5sum(α[ind] .* (wl[ind]).^ 2) + sum(t .* logY) #+ 0.5sum(log.(α))
+            llh = -0.5sum(α .* (wl).^ 2) + sum(t .* logY) #+ 0.5sum(log.(α))
         end
         LoopVectorization.@avx Y .= exp.(logY)
         #@info "llh - llhp" llh - llhp
