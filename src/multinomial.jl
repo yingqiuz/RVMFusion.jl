@@ -82,8 +82,8 @@ function RVM!(
             wtmp, αtmp, Xtmp,
             t, atol, maxiter, A, Y, logY, r
         )
-        #LoopVectorization.@avx llh2[iter] += 0.5sum(log.(αtmp))
-        #llh2[iter] -= 0.5 * n_ind * log(2π)
+        LoopVectorization.@avx llh2[iter] += 0.5sum(log.(αtmp))
+        llh2[iter] -= 0.5 * n_ind * log(2π)
         w[ind, :] .= wtmp
         # update α
         @inbounds Threads.@threads for k ∈ 1:K
@@ -189,8 +189,8 @@ function RVM!(
         XL2 = copy(XLtmp[:, ind_l])
         non_inf_ind = findall(x->x<(1/rtol), β2[:])
         n_non_inf_ind = size(non_inf_ind, 1)
-        #@info "n_non_inf_ind" n_non_inf_ind
-        #g = zeros(T, 2n_non_inf_ind + 1)
+        @info "n_non_inf_ind" n_non_inf_ind
+        g = zeros(T, 2n_non_inf_ind + 1)
         #for nn ∈ 1:n_samples
         #    g .+= Logit(whsamples[ind_l, :, nn], β2, XL2, transpose(XL2), t, non_inf_ind, atol, maxiter)
         #end
@@ -212,7 +212,6 @@ function RVM!(
             (1 .- β2[non_inf_ind] .* view(g, 1+n_non_inf_ind:2n_non_inf_ind)) ./
             view(g, 1:n_non_inf_ind)
         βtmp[ind_l, :] .= β2
-        #@info "β2" β2[non_inf_ind]
         #@info "wl.^2" g[1:n_non_inf_ind]
         #βtmp[ind_l, :] .= @views (1 .- β2.*g[n_ind_l+1:2n_ind_l, :]) ./ g[1:n_ind_l, :]
         # check convergence
@@ -223,6 +222,7 @@ function RVM!(
             prog;
             showvalues = [(:iter,iter-1), (:incr,incr)]
         )
+        @info "β2" β2[non_inf_ind]
         #@info "incr" incr
         #@info "llh" llh2[iter]
         #@info "βtmp" βtmp
@@ -336,7 +336,7 @@ function Logit(
         #end
         # update gradient
         mul!(g, Xt, t .- Y)
-        g .-= α .* wl
+        g[ind] .-= @views α[ind] .* wl[ind]
         #ldiv!(factorize(H), g)
         # update w
         copyto!(wp, wl)
@@ -354,7 +354,7 @@ function Logit(
         LoopVectorization.@avx Y .= exp.(logY)
         #@info "llh - llhp" llh - llhp
         if llh - llhp < tol
-            #@info "llh" llh
+            @info "llh" llh
             #@info "g" g
             #@info "Y" Y
             @inbounds for k ∈ 1:K
@@ -413,7 +413,7 @@ function Logit(
         #end
         # update gradient
         mul!(g, Xt, t .- Y)
-        g .-= α .* wl
+        g[ind] .-= @views α[ind] .* wl[ind]
         copyto!(wp, wl)
         wl[ind] .+= @views g[ind] .* r
         mul!(A, X, wl .+ wh)
