@@ -191,7 +191,7 @@ function RVM!(
         non_inf_ind = findall(x->x<(1/rtol), β2[:])
         n_non_inf_ind = size(non_inf_ind, 1)
         #@info "n_non_inf_ind" n_non_inf_ind
-        g = zeros(T, 2n_non_inf_ind + 1)
+        #g = zeros(T, 2n_non_inf_ind + 1)
         #for nn ∈ 1:n_samples
         #    g .+= Logit(whsamples[ind_l, :, nn], β2, XL2, transpose(XL2), t, non_inf_ind, atol, maxiter)
         #end
