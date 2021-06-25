@@ -9,7 +9,7 @@ function WoodburyInv!(
         rmul!(X, Diagonal(sqrt.(1 ./ g)))
         return Diagonal(1 ./ g) - X' * LinearAlgebra.inv!(C) * X
     else
-        return LinearAlgebra.inv!(cholesky!(Hermitian(Diagonal(g) + X' * X)))
+        return LinearAlgebra.inv!(cholesky!(Symmetric(Diagonal(g) + X' * X)))
     end
 end
 
@@ -26,7 +26,7 @@ function WoodburyInv!(
         #rmul!(X, Diagonal(sqrt.(1 ./ g)))
         #return Diagonal(1 ./ g) - X' * inv!(C) * X
     else
-        d .= diag(LinearAlgebra.inv!(cholesky!(Hermitian(Diagonal(g) + X' * X))))  # \ I(ncol)
+        d .= diag(LinearAlgebra.inv!(cholesky!(Symmetric(Diagonal(g) + X' * X))))  # \ I(ncol)
     end
     d
 end

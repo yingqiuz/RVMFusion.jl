@@ -1,10 +1,25 @@
 #  RVM for lower quality data
 module RVMFusion
 using Statistics, LinearAlgebra, StatsBase, Distributions
-using ThreadsX, Transducers, Folds, ProgressMeter#], JuliaInterpreter
-import LoopVectorization
+using Transducers, Folds, ProgressMeter, LoopVectorization
 
-export RVM, RVM!, sigmoid, softmax, f1
+export RVM, RVM!
+export sigmoid, softmax, f1, predict
+export RVModel, FusedRVModel
+# define type
+abstract type Model end
+
+struct RVModel{T<:Real} <: Model
+    w::AbstractArray{T, 1}
+    H::AbstractArray{T, 2}
+    ind::AbstractArray{Int64, 1}
+end
+
+struct FusedRVModel{T<:Real} <: Model
+    w::AbstractArray{T, 2}
+    H::AbstractArray{T, 3}
+    ind::AbstractArray{Int64, 1}
+end
 
 include("utils.jl")
 include("binomial.jl")
