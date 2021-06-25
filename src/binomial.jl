@@ -81,8 +81,8 @@ function RVM!(
         ind_h = findall(α .< (1/rtol)) # index of nonzeros
         ind = ind_h[findall(in(ind_nonzero), ind_h)]
         αtmp = copy(α[ind])
-        αgrad, αgradp = (similar(αtmp) for _ = 1:2)
         wtmp = copy(w[ind])
+        g, gp, wp = (similar(αtmp) for _ = 1:3)
         n_ind = size(ind, 1)
         # loop through batches
         for b ∈ 1:num_batches
@@ -92,28 +92,28 @@ function RVM!(
                 ttmp = copy(t[(b-1)*BatchSize+1:b*BatchSize])
                 llh2[iter] += Logit!(
                     wtmp, αtmp, Xtmp, transpose(Xtmp),
-                    ttmp, atol, maxiter, a1, y1, αgrad
+                    ttmp, atol, maxiter, a1, y1, g, gp, wp
                 )
             else
                 Xtmp = copy(X[(b-1)*BatchSize+1:end, ind])
                 ttmp = copy(t[(b-1)*BatchSize+1:end])
                 llh2[iter] += Logit!(
                     wtmp, αtmp, Xtmp, transpose(Xtmp),
-                    ttmp, atol, maxiter, a2, y2, αgrad
+                    ttmp, atol, maxiter, a2, y2, g, gp, wp
                 )
             end
-            llh2[iter] += 0.5sum(log.(αtmp)) - 0.5n_ind*log(2π)
+            #llh2[iter] += 0.5sum(log.(αtmp)) - 0.5n_ind*log(2π)
             # update α
-            αtmp .= αgrad
+            #αtmp .= αgrad
         end
         α[ind] .= αtmp
         w[ind] .= wtmp
         # finish all mini batches
         llh2[iter] /= num_batches
         # last iteration
-        incr = abs(llh2[iter] - llh2[iter-1]) / abs(llh2[iter-1])
+        incr = (llh2[iter] - llh2[iter-1]) / llh2[iter-1]
         # check convergence
-        if incr < rtol || iter == maxiter
+        if abs(incr) < rtol || iter == maxiter
             if iter == maxiter
                 ProgressMeter.finish!(prog, spinner='✗')
                 @warn "Not converged after $(maxiter) iterations."
@@ -282,14 +282,15 @@ function Logit!(
     X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
     t::AbstractVector{T}, tol::Float64,
     maxiter::Int64, a::AbstractVector{T},
-    y::AbstractVector{T}, g::AbstractVector{T}
+    y::AbstractVector{T}, g::AbstractVector{T},
+    gp::AbstractVector{T}, wp::AbstractVector{T}
 ) where T<:Real
     n = size(X, 1)
     d = size(X, 2)
-    gp = zeros(T, d)
+    #gp = zeros(T, d)
     mul!(a, X, w)
     llhp = -Inf; llh = -Inf
-    wp = similar(w)
+    #wp = similar(w)
     @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
     r  = [0.0001]
     for iter = 2:maxiter
@@ -310,9 +311,9 @@ function Logit!(
         end
         @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
         if llh - llhp < tol || iter == maxiter
-            #llh += 0.5sum(log.(α)) - 0.5d*log(2π)
+            llh += 0.5sum(log.(α)) - 0.5d*log(2π)
             WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
-            g .= (1 .- α .* g) ./ w .^ 2
+            α .= (1 .- α .* g) ./ w .^ 2
             #g .= 0.5 .* (w.^2 .+ g .- 1 ./ α)
             if iter == maxiter
                 @warn "Not converged in finding the posterior of wh."
