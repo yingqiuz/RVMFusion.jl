@@ -1,6 +1,19 @@
-# interface
+# define types
+struct BnRVModel{T<:Real} <: Model
+    w::AbstractArray{T, 1}
+    H::AbstractArray{T, 2}
+    ind::AbstractArray{Int64, 1}
+end
+
+struct BnFusedRVModel{T<:Real} <: Model
+    w::AbstractArray{T, 2}
+    H::AbstractArray{T, 3}
+    ind::AbstractArray{Int64, 1}
+end
+
+# predict function
 function predict(
-    model::RVModel{T}, X::AbstractMatrix{T}
+    model::BnRVModel{T}, X::AbstractMatrix{T}
 ) where T <: Real
     Xview = @view X[:, model.ind]
     p = (1 .+ π .* diag(Xview * model.H * transpose(Xview)) ./ 8).^(-0.5) .* (Xview * model.w)
@@ -9,7 +22,7 @@ function predict(
 end
 
 function predict(
-    model::FusedRVModel{T}, X::AbstractMatrix{T}
+    model::BnFusedRVModel{T}, X::AbstractMatrix{T}
 ) where T <: Real
     Xnew = copy(X[:, model.ind])
     n = size(X, 1)
@@ -120,7 +133,7 @@ function RVM!(
             end
             H ./= num_batches
             println("done.")
-            return RVModel(wtmp, convert(Array{T}, Symmetric(H)), ind)
+            return BnRVModel(wtmp, convert(Array{T}, Symmetric(H)), ind)
         end
         ProgressMeter.next!(
             prog;
@@ -255,7 +268,7 @@ function RVM!(
                 #wl[:, col] .+=  view(whtmp, :, col)
                 #H[:, :, col] ./= num_batches
             end
-            return FusedRVModel(wl, H, ind_h[ind_l])
+            return BnFusedRVModel(wl, H, ind_h[ind_l])
         end
         ProgressMeter.next!(
             prog;
