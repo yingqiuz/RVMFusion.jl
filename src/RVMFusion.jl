@@ -9,18 +9,6 @@ export RVModel, FusedRVModel
 # define type
 abstract type Model end
 
-struct RVModel{T<:Real} <: Model
-    w::AbstractArray{T, 1}
-    H::AbstractArray{T, 2}
-    ind::AbstractArray{Int64, 1}
-end
-
-struct FusedRVModel{T<:Real} <: Model
-    w::AbstractArray{T, 2}
-    H::AbstractArray{T, 3}
-    ind::AbstractArray{Int64, 1}
-end
-
 include("utils.jl")
 include("binomial.jl")
 include("multinomial.jl")
