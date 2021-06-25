@@ -130,11 +130,11 @@ function RVM!(
 end
 
 """
-train and predict
+train only
 """
 function RVM!(
     XH::AbstractMatrix{T}, XL::AbstractMatrix{T},
-    t::AbstractVector{T}, XLtest::AbstractMatrix{T},
+    t::AbstractVector{T}, #XLtest::AbstractMatrix{T},
     α::AbstractVector{T}, β::AbstractVector{T};
     rtol::Float64=1e-6, atol::Float64=1e-6,
     maxiter::Int64=10000, n_samples::Int64=5000,
@@ -174,7 +174,7 @@ function RVM!(
         n_samples
     )
     XL = XL[:, ind_h]
-    XLtest = XLtest[:, ind_h]
+    #XLtest = XLtest[:, ind_h]
     β = β[ind_h]
     #βsum = similar(β)
     #fill!(βsum, 0.)
