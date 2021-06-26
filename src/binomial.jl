@@ -280,7 +280,7 @@ function Logit!(
         if llh - llhp < tol || iter == maxiter
             llh += 0.5sum(log.(α)) - 0.5d*log(2π)
             WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
-            α .= (1 .- α .* g) ./ w .^ 2
+            α .= (1 .- α .* g) ./ (w .^ 2 .+ 1e-10)
             #g .= 0.5 .* (w.^2 .+ g .- 1 ./ α)
             if iter == maxiter
                 @warn "Not converged in finding the posterior of wh."
