@@ -69,6 +69,7 @@ function RVM!(
     a1, y1 = (Vector{T}(undef, BatchSize) for _ = 1:2)
     a2, y2 = (Vector{T}(undef, n - BatchSize * (num_batches-1)) for _ = 1:2)
     ind_nonzero = findall(x -> x > 1e-3, std(X, dims=1)[:])
+    println("Setup done.")
     for iter ∈ 2:maxiter
         ind_h = findall(α .< (1/rtol)) # index of nonzeros
         ind = ind_h[findall(in(ind_nonzero), ind_h)]
@@ -171,17 +172,7 @@ function RVM!(
     XL = XL[:, ind_h]
     #XLtest = XLtest[:, ind_h]
     β = β[ind_h]
-    #βsum = similar(β)
-    #fill!(βsum, 0.)
-    #whsamples[ind_h, :] .= rand(MvNormal(wh, H), n_samples)
-    prog = ProgressUnknown(
-        "training on low quality data...",
-        spinner=true
-    )
-    ProgressMeter.next!(
-        prog;
-        showvalues = [(:iter, 0), (:incr, NaN)]
-    )
+    println("Setup done.")
     for iter ∈ 2:maxiter
         # the posterior or MLE solution of wl
         ind_l = findall(β .< (1/rtol)) # optional
@@ -189,7 +180,7 @@ function RVM!(
         βtmp = copy(β[ind_l])
         whtmp = copy(whsamples[ind_l, :])
         # iterate through batches
-        @inbounds for b ∈ 1:num_batches
+        @showprogress 0.5 "epoch $(iter-1) " for b ∈ 1:num_batches
             if b != num_batches
                 XLtmp = copy(XL[(b-1)*BatchSize+1:b*BatchSize, ind_l])
                 ttmp = copy(t[(b-1)*BatchSize+1:b*BatchSize])
@@ -214,10 +205,8 @@ function RVM!(
         incr = (llh[iter] - llh[iter-1]) / llh[iter-1]
         if abs(incr) < rtol || iter == maxiter
             if iter == maxiter
-                ProgressMeter.finish!(prog, spinner = '✗')
-                @warn "Not converged after $(maxiter) iterations. Results might be inaccurate."
-            else
-                ProgressMeter.finish!(prog, spinner = '✓')
+                @warn "Not converged after $(maxiter) iterations.
+                    Results might be inaccurate."
             end
             wl = zeros(T, n_ind, n_samples)
             H = zeros(T, n_ind, n_ind, n_samples)
@@ -252,10 +241,6 @@ function RVM!(
             end
             return BnFusedRVModel(wl, H, ind_h[ind_l])
         end
-        ProgressMeter.next!(
-            prog;
-            showvalues = [(:iter,iter-2), (:incr,incr)]
-        )
     end
 end
 
