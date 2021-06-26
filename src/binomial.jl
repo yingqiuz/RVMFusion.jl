@@ -154,8 +154,10 @@ function Logit!(
         mul!(g, Xt, t .- y)
         g .-= α .* w
         @debug "g" findall(isnan, g)
+        @debug "gp" findall(isnan, gp)
         @debug "α" α[findall(isnan, g)]
         @debug "w" w[findall(isnan, g)]
+        @debug "wp" wp[findall(isnan, g)]
         copyto!(wp, w)
         w .+= g .* r
         mul!(a, X, w)
