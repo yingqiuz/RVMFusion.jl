@@ -202,6 +202,7 @@ function Logit!(
         # update likelihood
         llh = @views -0.5sum(α[ind] .* w[ind] .* w[ind]) + sum(t .* logY)
         while !(llh - llhp > 0) # line search
+            @info "llh" llh 
             η .*= 0.8
             w[ind] .= @views wp[ind] .+ g[ind] .* η
             mul!(A, X, w)
@@ -209,7 +210,6 @@ function Logit!(
             llh = @views -0.5sum(α[ind] .* w[ind] .* w[ind]) + sum(t .* logY)
         end
         @avx Y .= exp.(Y)
-        @info "llh" llh
         if llh - llhp < tol || iter == maxiter
             if iter == maxiter
                 @warn "not converged."
