@@ -151,6 +151,7 @@ function Logit!(
     @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
     r  = [0.0001]
     for iter = 2:maxiter
+        copyto!(gp, g)
         mul!(g, Xt, t .- y)
         g .-= α .* w
         @debug "g" findall(isnan, g)
@@ -168,13 +169,13 @@ function Logit!(
         @debug "w" findall(isnan, w)
         @debug "min w" minimum(w)
         while !(llh - llhp > 0.)
-            if llh === NaN
-                w[findall(isnan, w)] .= 0.
-                mul!(a, X, w)
-                @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
-                    0.5sum(α .* w .^ 2)
-                break
-            end
+            #if llh === NaN
+            #    w[findall(isnan, w)] .= 0.
+            #    mul!(a, X, w)
+            #    @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
+            #        0.5sum(α .* w .^ 2)
+            #    break
+            #end
             r *= 0.8
             w .= wp .+ g .* r
             mul!(a, X, w)
@@ -195,7 +196,6 @@ function Logit!(
         @debug "g - gp, w - wp" g .- gp w .- wp
         r .= abs(sum((w .- wp) .* (g .- gp))) / (sum((g .- gp) .^ 2) + 1e-8)
         llhp = llh
-        copyto!(gp, g)
     end
 end
 
