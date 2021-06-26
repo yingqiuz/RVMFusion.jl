@@ -189,7 +189,7 @@ function Logit!(
             return llh
         end
         r .= sum((w .- wp) .* (g .- gp))
-        r .= abs.(r) ./ sum((g .- gp) .^ 2)
+        r .= abs.(r) ./ (sum((g .- gp) .^ 2) .+ 1e-4)
         llhp = llh
         copyto!(gp, g)
     end
@@ -463,7 +463,7 @@ function Logit(
             end
         else
             llhp = llh
-            η .= abs(sum((wl .- wp) .* (g .- gp))) ./ sum((g .- gp) .^ 2)
+            η .= abs(sum((wl .- wp) .* (g .- gp))) ./ (sum((g .- gp) .^ 2) + 1e-4)
             # update gradient
             copyto!(gp, g)
         end
@@ -502,7 +502,7 @@ function Logit(
             end
         else
             llhp = llh
-            η .= abs(sum((wl .- wp) .* (g .- gp))) ./ sum((g .- gp) .^ 2)
+            η .= abs(sum((wl .- wp) .* (g .- gp))) ./ (sum((g .- gp) .^ 2) + 1e-4)
             # update gradient
             copyto!(gp, g)
         end
@@ -524,13 +524,14 @@ function grad!(
     mul!(a, X, wl .+ wh)
     @avx llh = -sum(log1p.(exp.((1.0 .- 2.0 .* t) .* a))) -
         0.5sum(α .* wl .^ 2)
-    if llh === NaN
-        w[w .< 1e-8] .= 0.
-        mul!(a, X, w)
-        @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
-            0.5sum(α .* w .^ 2)
-    end
     while !(llh - llhp > 0.)
+        if llh === NaN
+            w[findall(isnan, w)] .= 0.
+            mul!(a, X, w)
+            @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
+                0.5sum(α .* w .^ 2)
+            break
+        end
         η .*= 0.8
         wl .= wp .+ g .* η
         mul!(a, X, wl .+ wh)
