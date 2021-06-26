@@ -156,8 +156,6 @@ function Logit!(
         @debug "g" findall(isnan, g)
         @debug "α" α[findall(isnan, g)]
         @debug "w" w[findall(isnan, g)]
-        @debug "w" w
-        @debug "w" fit(Histogram, abs.(w))
         copyto!(wp, w)
         w .+= g .* r
         mul!(a, X, w)
@@ -193,7 +191,7 @@ function Logit!(
         @debug "r1" abs(sum((w .- wp) .* (g .- gp)))
         @debug "r2" (sum((g .- gp) .^ 2) + 1e-4)
         @debug "g - gp, w - wp" g .- gp w .- wp
-        r .= abs(sum((w .- wp) .* (g .- gp))) / (sum((g .- gp) .^ 2) + 1e-4)
+        r .= abs(sum((w .- wp) .* (g .- gp))) / (sum((g .- gp) .^ 2) + 1e-8)
         llhp = llh
         copyto!(gp, g)
     end
