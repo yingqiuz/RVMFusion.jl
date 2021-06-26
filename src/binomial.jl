@@ -149,12 +149,7 @@ function Logit!(
     llhp = -Inf; llh = -Inf
     #wp = similar(w)
     @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
-<<<<<<< HEAD
-    η  = [0.0001]
-    ind = findall(x -> x<(1/tol), α)
-=======
     r  = [0.0001]
->>>>>>> parent of 8dd6e2d... fix broadcasting
     for iter = 2:maxiter
         mul!(g, Xt, t .- y)
         g .-= α .* w
@@ -162,22 +157,14 @@ function Logit!(
         #ldiv!(qr(H), g)
         # update w
         copyto!(wp, w)
-<<<<<<< HEAD
-        w[ind] .+= @views g[ind] .* η
-=======
         w .+= g .* r
->>>>>>> parent of 8dd6e2d... fix broadcasting
         mul!(a, X, w)
         @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
             @views 0.5sum(α[ind] .* w[ind] .^ 2)
         while !(llh - llhp > 0.)
-<<<<<<< HEAD
-            η .*= 0.8
-            w[ind] .= wp[ind] .+ g[ind] .* η
-=======
+            @info "llh" llh
             r *= 0.8
             w .= wp .+ g .* r
->>>>>>> parent of 8dd6e2d... fix broadcasting
             mul!(a, X, w)
             @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
                 @views 0.5sum(α[ind] .* w[ind] .^ 2)
@@ -186,11 +173,7 @@ function Logit!(
         if llh - llhp < tol || iter == maxiter
             llh += 0.5sum(log.(α)) - 0.5d*log(2π)
             WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
-<<<<<<< HEAD
-            α[ind] .= @views (1 .- α[ind] .* g[ind]) ./ (w[ind] .^ 2 .+ tol)
-=======
             α .= (1 .- α .* g) ./ (w .^ 2 .+ 1e-6)
->>>>>>> parent of 8dd6e2d... fix broadcasting
             #g .= 0.5 .* (w.^2 .+ g .- 1 ./ α)
             if iter == maxiter
                 @warn "Not converged in finding the posterior of wh."
