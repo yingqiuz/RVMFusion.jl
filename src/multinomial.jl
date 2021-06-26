@@ -99,8 +99,8 @@ function RVM!(
         wp = copy(wtmp)
         g, gp = (zeros(T, n_ind, K) for _ = 1:2)
         bar = Progress(
-            n, dt=0.5, barglyphs=BarGlyphs("[=> ]"),
-            barlen=num_batches, color=:yellow
+            num_batches, dt=0.5, barglyphs=BarGlyphs("[=> ]"),
+            barlen=50, color=:yellow
         )
         ind_flat = findall(x -> x < (1/atol), αtmp[:])
         for b ∈ 1:num_batches
