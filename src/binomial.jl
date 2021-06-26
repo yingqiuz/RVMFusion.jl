@@ -153,21 +153,20 @@ function Logit!(
     for iter = 2:maxiter
         mul!(g, Xt, t .- y)
         g .-= α .* w
-        @info "g" g
-        @info "w" w
-        @info "w" fit(Histogram, abs.(w))
+        @debug "g" g
+        @debug "w" w
+        @debug "w" fit(Histogram, abs.(w))
         copyto!(wp, w)
         w .+= g .* r
         mul!(a, X, w)
         @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) - 0.5sum(α .* w .^ 2)
-        @info "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
-        @info "llh2" 0.5sum(α .* w .^ 2)
+        @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
+        @debug "llh2" 0.5sum(α .* w .^ 2)
         if llh === NaN
             w[w .< 1e-8] .= 0.
             mul!(a, X, w)
             @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
                 0.5sum(α .* w .^ 2)
-            break
         end
         while !(llh - llhp > 0.)
             r *= 0.8
