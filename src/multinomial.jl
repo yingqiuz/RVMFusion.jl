@@ -196,8 +196,9 @@ function Logit!(
     mul!(A, X, w)
     @avx logY .= A .- log.(sum(exp.(A), dims=2))
     @avx Y .= exp.(logY)
-    @info "Y" Y
+    #@info "Y" Y
     for iter = 2:maxiter
+        @info "llh" llh
         # update gradient
         mul!(g, Xt, t .- Y)
         g[ind] .-= @views w[ind] .* α[ind]
