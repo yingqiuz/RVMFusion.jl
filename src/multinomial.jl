@@ -231,7 +231,7 @@ function Logit!(
         else
             llhp = llh
             # update step size
-            r .= @views abs(
+            η .= @views abs(
                 sum((w[ind] .- wp[ind]) .* (g[ind] .- gp[ind]))
             ) / sum((g[ind] .- gp[ind]) .^ 2)
             copyto!(gp, g)
@@ -549,7 +549,7 @@ function Logit(
             end
         else
             llhp = llh
-            r .= @views abs(
+            η .= @views abs(
                 sum((wl[ind] .- wp[ind]) .* (g[ind] .- gp[ind]))
             ) / sum((g[ind] .- gp[ind]) .^ 2)
             copyto!(gp, g)
@@ -602,7 +602,7 @@ function Logit(
             return predict(Xtest, wl .+ wh, H)
         else
             llhp = llh
-            r .= @views abs(
+            η .= @views abs(
                 sum((wl[ind] .- wp[ind]) .* (g[ind] .- gp[ind]))
             ) / sum((g[ind] .- gp[ind]) .^ 2)
             copyto!(gp, g)
