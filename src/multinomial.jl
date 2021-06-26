@@ -168,7 +168,7 @@ function hessian!(
     mul!(A, Xtmp, wtmp)
     @avx Y .= exp.(A)
     Y ./= sum(Y, dims=2)
-    @inbounds Threads.@threads for k ∈ 1:K
+    @inbounds Threads.@threads for k ∈ 1:size(H, 3)
         yk = view(Y, :, k)
         yk .= yk .* (1 .- yk)
         yk[yk .< 1e-10] .= 0.
