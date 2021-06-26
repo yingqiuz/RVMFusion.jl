@@ -65,7 +65,7 @@ function RVM!(
     llh2[1] = -Inf
     w, αsum = (zeros(T, d) for _ = 1:2)# .+ 1e-8
     # pre-allocate memories
-    num_batches = convert(Int64, round(n / BatchSize))
+    num_batches = n ÷ BatchSize
     a1, y1 = (Vector{T}(undef, BatchSize) for _ = 1:2)
     a2, y2 = (Vector{T}(undef, n - BatchSize * (num_batches-1)) for _ = 1:2)
     ind_nonzero = findall(x -> x > 1e-3, std(X, dims=1)[:])
@@ -149,8 +149,12 @@ function Logit!(
     llhp = -Inf; llh = -Inf
     #wp = similar(w)
     @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
+<<<<<<< HEAD
     η  = [0.0001]
     ind = findall(x -> x<(1/tol), α)
+=======
+    r  = [0.0001]
+>>>>>>> parent of 8dd6e2d... fix broadcasting
     for iter = 2:maxiter
         mul!(g, Xt, t .- y)
         g .-= α .* w
@@ -158,13 +162,22 @@ function Logit!(
         #ldiv!(qr(H), g)
         # update w
         copyto!(wp, w)
+<<<<<<< HEAD
         w[ind] .+= @views g[ind] .* η
+=======
+        w .+= g .* r
+>>>>>>> parent of 8dd6e2d... fix broadcasting
         mul!(a, X, w)
         @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
             @views 0.5sum(α[ind] .* w[ind] .^ 2)
         while !(llh - llhp > 0.)
+<<<<<<< HEAD
             η .*= 0.8
             w[ind] .= wp[ind] .+ g[ind] .* η
+=======
+            r *= 0.8
+            w .= wp .+ g .* r
+>>>>>>> parent of 8dd6e2d... fix broadcasting
             mul!(a, X, w)
             @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
                 @views 0.5sum(α[ind] .* w[ind] .^ 2)
@@ -173,14 +186,19 @@ function Logit!(
         if llh - llhp < tol || iter == maxiter
             llh += 0.5sum(log.(α)) - 0.5d*log(2π)
             WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
+<<<<<<< HEAD
             α[ind] .= @views (1 .- α[ind] .* g[ind]) ./ (w[ind] .^ 2 .+ tol)
+=======
+            α .= (1 .- α .* g) ./ (w .^ 2 .+ 1e-6)
+>>>>>>> parent of 8dd6e2d... fix broadcasting
             #g .= 0.5 .* (w.^2 .+ g .- 1 ./ α)
             if iter == maxiter
                 @warn "Not converged in finding the posterior of wh."
             end
             return llh
         end
-        η .= abs(sum((w .- wp) .* (g .- gp))) / sum((g .- gp) .^ 2)
+        r .= sum((w .- wp) .* (g .- gp))
+        r .= abs.(r) ./ sum((g .- gp) .^ 2)
         llhp = llh
         copyto!(gp, g)
     end
