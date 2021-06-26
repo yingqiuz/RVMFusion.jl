@@ -146,7 +146,7 @@ function Logit!(
     d = size(X, 2)
     #gp = zeros(T, d)
     mul!(a, X, w)
-    llhp = -Inf; llh = -Inf
+    llhp = -Inf
     #wp = similar(w)
     @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
     r  = [0.0001]
