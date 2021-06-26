@@ -65,7 +65,7 @@ model for higher quality data
 """
 function RVM!(
     X::AbstractMatrix{T}, t::AbstractMatrix{T}, α::AbstractMatrix{T};
-    rtol=1e-6, atol=1e-8, maxiter=10000, BatchSize=size(X, 1)
+    rtol=1e-6, atol=1e-8, maxiter=50000, BatchSize=size(X, 1)
 ) where T<:Real
     # Multinomial
     n = size(X, 1)
@@ -144,11 +144,11 @@ function RVM!(
                 if b != num_batches
                     Xtmp = @view X[(b-1)*BatchSize+1:b*BatchSize, ind]
                     ttmp = @view t[(b-1)*BatchSize+1:b*BatchSize, :]
-                    hessian!(H, Xtmp, wtmp, A1, Y1)
+                    hessian!(H, Xtmp, αtmp, wtmp, A1, Y1)
                 else  # the last batch
                     Xtmp = @view X[(b-1)*BatchSize+1:end, ind]
                     ttmp = @view t[(b-1)*BatchSize+1:end, :]
-                    hessian!(H, Xtmp, wtmp, A2, Y2)
+                    hessian!(H, Xtmp, αtmp, wtmp, A2, Y2)
                 end
             end
             print("done.")
@@ -161,8 +161,8 @@ end
 average InvH across batches
 """
 function hessian!(
-    H::AbstractArray{T, 3},
-    Xtmp::AbstractMatrix{T}, wtmp::AbstractMatrix{T},
+    H::AbstractArray{T, 3}, Xtmp::AbstractMatrix{T},
+    αtmp::AbstractMatrix{T}, wtmp::AbstractMatrix{T},
     A::AbstractMatrix{T}, Y::AbstractMatrix{T},
 ) where T <: Float64
     mul!(A, Xtmp, wtmp)
