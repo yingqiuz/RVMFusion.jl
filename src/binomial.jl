@@ -158,7 +158,6 @@ function Logit!(
         mul!(a, X, w)
         @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) - 0.5sum(α .* w .^ 2)
         while !(llh - llhp > 0.)
-            @info "llh" llh
             r *= 0.8
             w .= wp .+ g .* r
             mul!(a, X, w)
@@ -168,7 +167,8 @@ function Logit!(
         if llh - llhp < tol || iter == maxiter
             llh += 0.5sum(log.(α)) - 0.5d*log(2π)
             WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
-            α .= (1 .- α .* g) ./ (w .^ 2 .+ 1e-6)
+            @info "g" findall(isnan, g) findall(isinf, g)
+            α .= (1 .- α .* g) ./ (w .^ 2 .+ 1e-8)
             #g .= 0.5 .* (w.^2 .+ g .- 1 ./ α)
             if iter == maxiter
                 @warn "Not converged in finding the posterior of wh."
