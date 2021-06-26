@@ -102,6 +102,7 @@ function RVM!(
             n, dt=0.5, barglyphs=BarGlyphs("[=> ]"),
             barlen=num_batches, color=:yellow
         )
+        ind_flat = findall(x -> x < (1/atol), αtmp[:])
         for b ∈ 1:num_batches
             if b != num_batches
                 Xtmp = copy(X[(b-1)*BatchSize+1:b*BatchSize, ind])
@@ -109,7 +110,7 @@ function RVM!(
                 llh[iter] += Logit!(
                     wtmp, αtmp, Xtmp,
                     ttmp, atol, maxiter,
-                    A1, Y1, logY1, η, g, gp, wp
+                    A1, Y1, logY1, η, g, gp, wp, ind_flat
                 ) / num_batches
             else  # the last batch
                 Xtmp = copy(X[(b-1)*BatchSize+1:end, ind])
@@ -117,7 +118,7 @@ function RVM!(
                 llh[iter] += Logit!(
                     wtmp, αtmp, Xtmp,
                     ttmp, atol, maxiter,
-                    A2, Y2, logY2, η, g, gp, wp
+                    A2, Y2, logY2, η, g, gp, wp, ind_flat
                 ) / num_batches
             end
             ProgressMeter.next!(bar)
@@ -186,12 +187,11 @@ function Logit!(
     t::AbstractMatrix{T}, tol::Float64, maxiter::Int64,
     A::AbstractMatrix{T}, Y::AbstractMatrix{T}, logY::AbstractMatrix{T},
     η::AbstractArray{T}, g::AbstractMatrix{T}, gp::AbstractMatrix{T},
-    wp::AbstractMatrix{T}
+    wp::AbstractMatrix{T}, ind::AbstractVector{Int64}
 ) where T<:Real
     n, K = size(t)
     d = size(X, 2)
     Xt = transpose(X)
-    ind = findall(x -> x < (1/tol), α[:])
     llhp = -Inf
     mul!(A, X, w)
     @avx logY .= A .- log.(sum(exp.(A), dims=2))
