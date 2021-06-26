@@ -209,6 +209,7 @@ function Logit!(
             llh = @views -0.5sum(α[ind] .* w[ind] .* w[ind]) + sum(t .* logY)
         end
         @avx Y .= exp.(Y)
+        @info "llh" llh
         if llh - llhp < tol || iter == maxiter
             if iter == maxiter
                 @warn "not converged."
