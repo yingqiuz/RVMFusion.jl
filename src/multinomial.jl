@@ -75,6 +75,7 @@ function RVM!(
     K = size(t, 2)  # total number of classes
     size(α, 2) == K || throw(DimensionMismatch("Number of classes and size of α mismatch."))
     ind_nonzero = findall(x -> x > 1e-3, std(X, dims=1)[:])
+    n_ind_nonzero = size(ind_nonzero, 1)
     # initialise
     # preallocate type-II likelihood (evidence) vector
     llh = zeros(T, maxiter)
@@ -84,10 +85,6 @@ function RVM!(
     num_batches = convert(Int64, round(n / BatchSize))
     A1, Y1, logY1 = (Matrix{T}(undef, BatchSize, K) for _ = 1:3)
     A2, Y2, logY2 = (Matrix{T}(undef, n - BatchSize*(num_batches-1), K) for _ = 1:3)
-    prog = ProgressUnknown(
-        "training on high quality data...",
-        spinner=true
-    )
     println("Setup done.")
     for iter ∈ 2:maxiter
         ind = unique!([item[1] for item in findall(α .< (1/rtol))])
@@ -98,12 +95,8 @@ function RVM!(
         wp = copy(wtmp)
         g, gp = (zeros(T, n_ind, K) for _ = 1:2)
         η = [0.0001] # initial step size
-        bar = Progress(
-            num_batches, dt=0.5, barglyphs=BarGlyphs("[=> ]"),
-            barlen=50, color=:yellow
-        )
         ind_flat = findall(x -> x < (1/atol), αtmp[:])
-        for b ∈ 1:num_batches
+        @showprogress 0.5 "epoch $(iter-1) " for b ∈ 1:num_batches
             if b != num_batches
                 Xtmp = copy(X[(b-1)*BatchSize+1:b*BatchSize, ind])
                 ttmp = copy(t[(b-1)*BatchSize+1:b*BatchSize, :])
@@ -111,7 +104,7 @@ function RVM!(
                     wtmp, αtmp, Xtmp,
                     ttmp, atol, maxiter,
                     A1, Y1, logY1, η, g, gp, wp, ind_flat
-                ) / num_batches
+                )
             else  # the last batch
                 Xtmp = copy(X[(b-1)*BatchSize+1:end, ind])
                 ttmp = copy(t[(b-1)*BatchSize+1:end, :])
@@ -119,26 +112,24 @@ function RVM!(
                     wtmp, αtmp, Xtmp,
                     ttmp, atol, maxiter,
                     A2, Y2, logY2, η, g, gp, wp, ind_flat
-                ) / num_batches
+                )
             end
-            ProgressMeter.next!(bar)
+            w[ind, :] .= wtmp
+            llh[iter] += (
+                -0.5sum(α .* w.^2) +
+                0.5sum(log.(α)) -
+                0.5* d * K*log(2π)
+            )
+            α[ind, :] .= αtmp
         end
-        w[ind, :] .= wtmp
-        α[ind, :] .= αtmp
         # check convergence
         incr = (llh[iter] - llh[iter-1]) / llh[iter-1]
-        #@info "iteration $iter" incr
-        ProgressMeter.next!(
-            prog;
-            showvalues = [(:iter,iter-1), (:incr,incr)]
-        )
+        println("epoch ", iter, " done. incr :", incr)
         if abs(incr) < rtol || iter == maxiter
-            iter != maxiter ?
-                ProgressMeter.finish!(prog, spinner = '✓') : (
-                    ProgressMeter.finish!(prog, spinner = '✗');
-                    @warn "Not converged after $(maxiter) steps.
-                        Results may be inaccurate."
-                )
+            if iter == maxiter
+                @warn "Not converged after $(maxiter) steps.
+                    Results may be inaccurate."
+            end
             H = zeros(T, n_ind, n_ind, K)
             for b ∈ 1:num_batches
                 if b != num_batches
@@ -218,7 +209,7 @@ function Logit!(
             if iter == maxiter
                 @warn "not converged."
             end
-            llh += 0.5sum(log.(view(α, ind))) - 0.5*size(ind, 1)*log(2π)
+            #llh += 0.5sum(log.(view(α, ind))) - 0.5*size(ind, 1)*log(2π)
             # update α
             @inbounds Threads.@threads for k ∈ 1:K
                 αk = view(α, :, k)
@@ -232,7 +223,7 @@ function Logit!(
                 )
                 αk .= (1 .- αk .* gk) ./ (view(w, :, k) .^ 2 .+ 1e-10)
             end
-            return llh
+            return sum(t .* logY)
         else
             llhp = llh
             # update step size
