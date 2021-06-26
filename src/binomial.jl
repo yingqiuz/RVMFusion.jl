@@ -197,7 +197,7 @@ function RVM!(
             ) |> Broadcasting() |> Folds.sum
             g ./= n_samples
             llh[iter] += g[end] + 0.5sum(log.(βtmp)) - 0.5n_ind*log(2π)
-            βtmp .= @views (1 .- βtmp .* g[n_ind+1:2n_ind]) ./ (g[1:n_ind] + 1e-10)
+            βtmp .= @views (1 .- βtmp .* g[n_ind+1:2n_ind]) ./ (g[1:n_ind] + 1e-8)
             #βsum[ind_l] .+= @views g[1:end-1] .^ 2
         end
         β[ind_l] .= βtmp
@@ -280,7 +280,7 @@ function Logit!(
         if llh - llhp < tol || iter == maxiter
             llh += 0.5sum(log.(α)) - 0.5d*log(2π)
             WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
-            α .= (1 .- α .* g) ./ (w .^ 2 .+ 1e-10)
+            α .= (1 .- α .* g) ./ (w .^ 2 .+ 1e-8)
             #g .= 0.5 .* (w.^2 .+ g .- 1 ./ α)
             if iter == maxiter
                 @warn "Not converged in finding the posterior of wh."
