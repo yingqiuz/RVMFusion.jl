@@ -163,6 +163,8 @@ function Logit!(
         @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
         @debug "llh2" 0.5sum(α .* w .^ 2)
         @debug "llh2" 0.5sum(w .^ 2)
+        @debug "w" findall(isnan, w)
+        @debug "min w" minimum(w)
         while !(llh - llhp > 0.)
             if llh === NaN
                 w[w .< 1e-8] .= 0.
