@@ -153,7 +153,9 @@ function Logit!(
     for iter = 2:maxiter
         mul!(g, Xt, t .- y)
         g .-= α .* w
-        @debug "g" g
+        @debug "g" findall(isnan, g)
+        @debug "α" α[findall(isnan, g)]
+        @debug "w" w[findall(isnan, g)]
         @debug "w" w
         @debug "w" fit(Histogram, abs.(w))
         copyto!(wp, w)
