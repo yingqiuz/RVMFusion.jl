@@ -84,7 +84,6 @@ function RVM!(
     num_batches = convert(Int64, round(n / BatchSize))
     A1, Y1, logY1 = (Matrix{T}(undef, BatchSize, K) for _ = 1:3)
     A2, Y2, logY2 = (Matrix{T}(undef, n - BatchSize*(num_batches-1), K) for _ = 1:3)
-    η = [0.0001] # initial step size
     prog = ProgressUnknown(
         "training on high quality data...",
         spinner=true
@@ -98,6 +97,7 @@ function RVM!(
         wtmp = copy(w[ind, :])
         wp = copy(wtmp)
         g, gp = (zeros(T, n_ind, K) for _ = 1:2)
+        η = [0.0001] # initial step size
         bar = Progress(
             num_batches, dt=0.5, barglyphs=BarGlyphs("[=> ]"),
             barlen=50, color=:yellow
@@ -206,9 +206,6 @@ function Logit!(
         @avx logY .= A .- log.(sum(exp.(A), dims=2))
         # update likelihood
         llh = @views -0.5sum(α[ind] .* w[ind] .* w[ind]) + sum(t .* logY)
-        if llh === NaN
-            @info "α w" α w
-        end
         while !(llh - llhp > 0) # line search
             η .*= 0.8
             w[ind] .= @views wp[ind] .+ g[ind] .* η
