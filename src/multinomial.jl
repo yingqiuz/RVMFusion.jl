@@ -198,7 +198,6 @@ function Logit!(
     @avx Y .= exp.(logY)
     #@info "Y" Y
     for iter = 2:maxiter
-        @info "llh" llh
         # update gradient
         mul!(g, Xt, t .- Y)
         g[ind] .-= @views w[ind] .* α[ind]
@@ -208,6 +207,7 @@ function Logit!(
         @avx logY .= A .- log.(sum(exp.(A), dims=2))
         # update likelihood
         llh = @views -0.5sum(α[ind] .* w[ind] .* w[ind]) + sum(t .* logY)
+        @info "llh" llh
         while !(llh - llhp > 0) # line search
             η .*= 0.8
             w[ind] .= @views wp[ind] .+ g[ind] .* η
