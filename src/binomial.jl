@@ -163,6 +163,8 @@ function Logit!(
             mul!(a, X, w)
             @info "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
             @info "llh2" 0.5sum(α .* w .^ 2)
+            @info "α" α
+            @info "w" w
             @info "α" fit(Histogram, α)
             @info "w" fit(Histogram, w)
             @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) - 0.5sum(α .* w .^ 2)
