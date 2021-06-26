@@ -188,8 +188,10 @@ function Logit!(
             end
             return llh
         end
-        r .= sum((w .- wp) .* (g .- gp))
-        r .= abs.(r) ./ (sum((g .- gp) .^ 2) .+ 1e-4)
+        @debug "r1" abs(sum((w .- wp) .* (g .- gp)))
+        @debug "r2" (sum((g .- gp) .^ 2) + 1e-4)
+        @debug "g - gp, w - wp" g .- gp w .- wp
+        r .= abs(sum((w .- wp) .* (g .- gp))) / (sum((g .- gp) .^ 2) + 1e-4)
         llhp = llh
         copyto!(gp, g)
     end
