@@ -95,7 +95,7 @@ function RVM!(
         g, gp = (zeros(T, n_ind, K) for _ = 1:2)
         η = [0.0001] # initial step size
         ind_flat = findall(x -> x < (1/atol), αtmp[:])
-        @showprogress 1 "epoch $(iter)" for b ∈ 1:num_batches
+        @showprogress 0.5 "epoch $(iter)" for b ∈ 1:num_batches
             if b != num_batches
                 Xtmp = copy(X[(b-1)*BatchSize+1:b*BatchSize, ind])
                 ttmp = copy(t[(b-1)*BatchSize+1:b*BatchSize, :])
