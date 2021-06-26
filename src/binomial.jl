@@ -63,7 +63,7 @@ function RVM!(
     # preallocate type-II likelihood (evidence) vector
     llh2 = zeros(T, maxiter)
     llh2[1] = -Inf
-    w, αsum = (zeros(T, d) for _ = 1:2)# .+ 1e-8
+    w = zeros(T, d)
     # pre-allocate memories
     num_batches = n ÷ BatchSize
     a1, y1 = (Vector{T}(undef, BatchSize) for _ = 1:2)
@@ -150,6 +150,7 @@ function Logit!(
     #wp = similar(w)
     @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
     r  = [0.0001]
+    @info "w" w
     for iter = 2:maxiter
         mul!(g, Xt, t .- y)
         g .-= α .* w
