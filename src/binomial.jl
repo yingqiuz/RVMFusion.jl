@@ -153,9 +153,9 @@ function Logit!(
     for iter = 2:maxiter
         mul!(g, Xt, t .- y)
         g .-= α .* w
-        #@info "g" g
-        #@info "w" w
-        #@info "w" fit(Histogram, abs.(w))
+        @info "g" g
+        @info "w" w
+        @info "w" fit(Histogram, abs.(w))
         copyto!(wp, w)
         w .+= g .* r
         mul!(a, X, w)
