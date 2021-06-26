@@ -77,7 +77,7 @@ function RVM!(
         g, gp, wp = (similar(αtmp) for _ = 1:3)
         n_ind = size(ind, 1)
         # loop through batches
-        @showprogress 1 "epoch $(iter)" for b ∈ 1:num_batches
+        @showprogress 0.5 "epoch $(iter) " for b ∈ 1:num_batches
             #copyto!(αgradp, αgrad)
             if b != num_batches
                 Xtmp = copy(X[(b-1)*BatchSize+1:b*BatchSize, ind])
