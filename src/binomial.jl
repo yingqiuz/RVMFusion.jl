@@ -150,12 +150,12 @@ function Logit!(
     #wp = similar(w)
     @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
     r  = [0.0001]
-    @info "w" w
     for iter = 2:maxiter
         mul!(g, Xt, t .- y)
         g .-= α .* w
         @info "g" g
         @info "w" w
+        @info "w" findall(isnan, w) findall(isinf, w)
         copyto!(wp, w)
         w .+= g .* r
         mul!(a, X, w)
@@ -166,7 +166,6 @@ function Logit!(
             r *= 0.5
             w .= wp .+ g .* r
             mul!(a, X, w)
-            @info "w" w
             @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) - 0.5sum(α .* w .^ 2)
         end
         @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
