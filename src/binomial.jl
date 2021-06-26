@@ -197,7 +197,7 @@ function RVM!(
             ) |> Broadcasting() |> Folds.sum
             g ./= n_samples
             llh[iter] += g[end] + 0.5sum(log.(βtmp)) - 0.5n_ind*log(2π)
-            βtmp .= @views (1 .- βtmp .* g[n_ind+1:2n_ind]) ./ g[1:n_ind]
+            βtmp .= @views (1 .- βtmp .* g[n_ind+1:2n_ind]) ./ (g[1:n_ind] + 1e-10)
             #βsum[ind_l] .+= @views g[1:end-1] .^ 2
         end
         β[ind_l] .= βtmp
