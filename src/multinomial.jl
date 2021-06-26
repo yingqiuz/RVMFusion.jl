@@ -98,6 +98,10 @@ function RVM!(
         wtmp = copy(w[ind, :])
         wp = copy(wtmp)
         g, gp = (zeros(T, n_ind, K) for _ = 1:2)
+        bar = Progress(
+            n, dt=0.5, barglyphs=BarGlyphs("[=> ]"),
+            barlen=num_batches, color=:yellow
+        )
         for b ∈ 1:num_batches
             if b != num_batches
                 Xtmp = copy(X[(b-1)*BatchSize+1:b*BatchSize, ind])
@@ -116,6 +120,7 @@ function RVM!(
                     A2, Y2, logY2, η, g, gp, wp
                 ) / num_batches
             end
+            ProgressMeter.next!(bar)
         end
         w[ind, :] .= wtmp
         α[ind, :] .= αtmp
@@ -159,7 +164,7 @@ function hessian!(
     Xtmp::AbstractMatrix{T}, wtmp::AbstractMatrix{T},
     A::AbstractMatrix{T}, Y::AbstractMatrix{T},
 ) where T <: Float64
-    mul!(A1, Xtmp, wtmp)
+    mul!(A, Xtmp, wtmp)
     @avx Y .= exp.(A)
     Y ./= sum(Y, dims=2)
     @inbounds Threads.@threads for k ∈ 1:K
@@ -190,7 +195,8 @@ function Logit!(
     llhp = -Inf
     mul!(A, X, w)
     @avx logY .= A .- log.(sum(exp.(A), dims=2))
-    @avx Y .= exp.(Y)
+    @avx Y .= exp.(logY)
+    @info "Y" Y
     for iter = 2:maxiter
         # update gradient
         mul!(g, Xt, t .- Y)
@@ -202,14 +208,13 @@ function Logit!(
         # update likelihood
         llh = @views -0.5sum(α[ind] .* w[ind] .* w[ind]) + sum(t .* logY)
         while !(llh - llhp > 0) # line search
-            @info "llh" llh 
             η .*= 0.8
             w[ind] .= @views wp[ind] .+ g[ind] .* η
             mul!(A, X, w)
             @avx logY .= A .- log.(sum(exp.(A), dims=2))
             llh = @views -0.5sum(α[ind] .* w[ind] .* w[ind]) + sum(t .* logY)
         end
-        @avx Y .= exp.(Y)
+        @avx Y .= exp.(logY)
         if llh - llhp < tol || iter == maxiter
             if iter == maxiter
                 @warn "not converged."
