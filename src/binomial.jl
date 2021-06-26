@@ -69,14 +69,6 @@ function RVM!(
     a1, y1 = (Vector{T}(undef, BatchSize) for _ = 1:2)
     a2, y2 = (Vector{T}(undef, n - BatchSize * (num_batches-1)) for _ = 1:2)
     ind_nonzero = findall(x -> x > 1e-3, std(X, dims=1)[:])
-    prog = ProgressUnknown(
-        "training on high quality data...",
-        spinner=true
-    )
-    ProgressMeter.next!(
-        prog;
-        showvalues = [(:iter,0), (:incr,NaN)]
-    )
     for iter ∈ 2:maxiter
         ind_h = findall(α .< (1/rtol)) # index of nonzeros
         ind = ind_h[findall(in(ind_nonzero), ind_h)]
@@ -85,7 +77,7 @@ function RVM!(
         g, gp, wp = (similar(αtmp) for _ = 1:3)
         n_ind = size(ind, 1)
         # loop through batches
-        for b ∈ 1:num_batches
+        @showprogress 1 "epoch $(iter)" for b ∈ 1:num_batches
             #copyto!(αgradp, αgrad)
             if b != num_batches
                 Xtmp = copy(X[(b-1)*BatchSize+1:b*BatchSize, ind])
@@ -102,9 +94,6 @@ function RVM!(
                     ttmp, atol, maxiter, a2, y2, g, gp, wp
                 )
             end
-            #llh2[iter] += 0.5sum(log.(αtmp)) - 0.5n_ind*log(2π)
-            # update α
-            #αtmp .= αgrad
         end
         α[ind] .= αtmp
         w[ind] .= wtmp
@@ -112,13 +101,10 @@ function RVM!(
         llh2[iter] /= num_batches
         # last iteration
         incr = (llh2[iter] - llh2[iter-1]) / llh2[iter-1]
-        # check convergence
+        println("epoch ", iter, " done. incr ", incr)
         if abs(incr) < rtol || iter == maxiter
             if iter == maxiter
-                ProgressMeter.finish!(prog, spinner='✗')
                 @warn "Not converged after $(maxiter) iterations."
-            else
-                 ProgressMeter.finish!(prog, spinner='✓')
             end
             H = zeros(T, n_ind, n_ind)
             y = view(X, :, ind) * wtmp
@@ -135,10 +121,6 @@ function RVM!(
             println("done.")
             return BnRVModel(wtmp, convert(Array{T}, Symmetric(H)), ind)
         end
-        ProgressMeter.next!(
-            prog;
-            showvalues = [(:iter,iter-1), (:incr,incr)]
-        )
     end
 end
 
