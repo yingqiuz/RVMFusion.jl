@@ -162,13 +162,14 @@ function Logit!(
         @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) - 0.5sum(α .* w .^ 2)
         @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
         @debug "llh2" 0.5sum(α .* w .^ 2)
-        if llh === NaN
-            w[w .< 1e-8] .= 0.
-            mul!(a, X, w)
-            @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
-                0.5sum(α .* w .^ 2)
-        end
         while !(llh - llhp > 0.)
+            if llh === NaN
+                w[w .< 1e-8] .= 0.
+                mul!(a, X, w)
+                @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
+                    0.5sum(α .* w .^ 2)
+                break
+            end
             r *= 0.8
             w .= wp .+ g .* r
             mul!(a, X, w)
@@ -520,6 +521,12 @@ function grad!(
     mul!(a, X, wl .+ wh)
     @avx llh = -sum(log1p.(exp.((1.0 .- 2.0 .* t) .* a))) -
         0.5sum(α .* wl .^ 2)
+    if llh === NaN
+        w[w .< 1e-8] .= 0.
+        mul!(a, X, w)
+        @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
+            0.5sum(α .* w .^ 2)
+    end
     while !(llh - llhp > 0.)
         η .*= 0.8
         wl .= wp .+ g .* η
