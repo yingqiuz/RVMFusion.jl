@@ -167,7 +167,7 @@ function Logit!(
         @debug "min w" minimum(w)
         while !(llh - llhp > 0.)
             if llh === NaN
-                w[w .< 1e-8] .= 0.
+                w[findall(isnan, w)] .= 0.
                 mul!(a, X, w)
                 @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
                     0.5sum(α .* w .^ 2)
