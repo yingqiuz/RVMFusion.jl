@@ -112,7 +112,7 @@ function RVM!(
                 if b != num_batches
                     Xtmp = @view X[(b-1)*BatchSize+1:b*BatchSize, ind]
                     mul!(a1, Xtmp, wtmp)
-                    @avx y1 .= 1 ./ (1 .+ exp(-1 .* a1))
+                    @avx y1 .= 1 ./ (1 .+ exp.(-1 .* a1))
                     H .+= WoodburyInv!(
                         αtmp,
                         Diagonal(sqrt.(y1 .* (1 .- y1))) * Xtmp
@@ -120,7 +120,7 @@ function RVM!(
                 else
                     Xtmp = @view X[(b-1)*BatchSize+1:end, ind]
                     mul!(a2, Xtmp, wtmp)
-                    @avx y2 .= 1 ./ (1 .+ exp(-1 .* a2))
+                    @avx y2 .= 1 ./ (1 .+ exp.(-1 .* a2))
                     H .+= WoodburyInv!(
                         αtmp,
                         Diagonal(sqrt.(y2 .* (1 .- y2))) * Xtmp
@@ -163,11 +163,15 @@ function Logit!(
         #@info "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
         #@info "llh2" 0.5sum(α .* w .^ 2)
         while !(llh - llhp > 0.)
+            if llh === NaN
+                fill(w, 0.)
+                mul!(a, X, w)
+                @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
+                    0.5sum(α .* w .^ 2)
+                break
+            end
             r *= 0.8
             w .= wp .+ g .* r
-            if NaN in w
-                fill(w, 0.)
-            end
             mul!(a, X, w)
             @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) - 0.5sum(α .* w .^ 2)
         end
