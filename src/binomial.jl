@@ -402,7 +402,7 @@ function RVM!(
             end
             XLtesttmp = copy(XLtest[:, XLtest[ind_h[ind_l]]])
             predictions = zeros(T, size(XLtest, 1))
-            @showprogress 0.5 "making predictions..." @inbounds for b ∈ 1:num_batches
+            @showprogress 0.5 "making predictions..." for b ∈ 1:num_batches
                 if b != num_batches
                     XLtmp = copy(XL[(b-1)*BatchSize+1:b*BatchSize, ind_l])
                     ttmp = copy(t[(b-1)*BatchSize+1:b*BatchSize])
