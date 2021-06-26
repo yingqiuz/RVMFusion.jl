@@ -196,7 +196,6 @@ function Logit!(
     mul!(A, X, w)
     @avx logY .= A .- log.(sum(exp.(A), dims=2))
     @avx Y .= exp.(logY)
-    @info "Y" Y
     for iter = 2:maxiter
         # update gradient
         mul!(g, Xt, t .- Y)
