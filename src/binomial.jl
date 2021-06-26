@@ -155,7 +155,7 @@ function Logit!(
         g .-= α .* w
         @info "g" g
         @info "w" w
-        @info "w" fit(Histogram, w)
+        @info "w" fit(Histogram, abs.(w))
         copyto!(wp, w)
         w .+= g .* r
         mul!(a, X, w)
