@@ -153,18 +153,21 @@ function Logit!(
     for iter = 2:maxiter
         mul!(g, Xt, t .- y)
         g .-= α .* w
-        @info "g" g
-        @info "w" w
-        @info "w" fit(Histogram, abs.(w))
+        #@info "g" g
+        #@info "w" w
+        #@info "w" fit(Histogram, abs.(w))
         copyto!(wp, w)
         w .+= g .* r
         mul!(a, X, w)
         @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) - 0.5sum(α .* w .^ 2)
-        @info "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
-        @info "llh2" 0.5sum(α .* w .^ 2)
+        #@info "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
+        #@info "llh2" 0.5sum(α .* w .^ 2)
         while !(llh - llhp > 0.)
-            r *= 0.5
+            r *= 0.8
             w .= wp .+ g .* r
+            if NaN in w
+                fill(w, 0.)
+            end
             mul!(a, X, w)
             @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) - 0.5sum(α .* w .^ 2)
         end
@@ -172,7 +175,7 @@ function Logit!(
         if llh - llhp < tol || iter == maxiter
             llh += 0.5sum(log.(α)) - 0.5d*log(2π)
             WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
-            α .= (1 .- α .* g) ./ (w .^ 2 .+ 1e-6)
+            α .= (1 .- α .* g) ./ (w .^ 2 .+ 1e-8)
             if iter == maxiter
                 @warn "Not converged in finding the posterior of wh."
             end
