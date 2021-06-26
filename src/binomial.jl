@@ -158,6 +158,7 @@ function Logit!(
         mul!(a, X, w)
         @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) - 0.5sum(α .* w .^ 2)
         while !(llh - llhp > 0.)
+            @info "llh" llh
             r *= 0.8
             w .= wp .+ g .* r
             mul!(a, X, w)
