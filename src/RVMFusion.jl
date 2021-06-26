@@ -56,5 +56,32 @@ function RVM(
     end
 end
 
+# multinomial
+"""train only"""
+function RVM!(
+    XH::AbstractMatrix{T}, XL::AbstractMatrix{T}, t::AbstractMatrix{T},
+    α::AbstractMatrix{T}, β::AbstractMatrix{T}; kw...
+) where T<:Real
+    model = RVM!(
+        XH, t, α;
+        rtol=rtol, atol=atol,
+        maxiter=maxiter, BatchSize=BatchSize
+    )
+    RVM!(model, XL, t, α, β; kw...)
+end
+
+"""train + predict"""
+function RVM!(
+    XH::AbstractMatrix{T}, XL::AbstractMatrix{T}, t::AbstractMatrix{T},
+    XLtest::AbstractMatrix{T}, α::AbstractMatrix{T}, β::AbstractMatrix{T};
+    kw...
+) where T<:Real
+    model = RVM!(
+        XH, t, α;
+        rtol=rtol, atol=atol,
+        maxiter=maxiter, BatchSize=BatchSize
+    )
+    RVM!(model, XL, t, XLtest, α, β; kw...)
+end
 
 end
