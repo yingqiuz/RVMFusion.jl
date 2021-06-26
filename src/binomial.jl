@@ -153,21 +153,16 @@ function Logit!(
     for iter = 2:maxiter
         mul!(g, Xt, t .- y)
         g .-= α .* w
-        #@info "g" g
-        #ldiv!(qr(H), g)
-        # update w
         copyto!(wp, w)
         w .+= g .* r
         mul!(a, X, w)
-        @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
-            @views 0.5sum(α[ind] .* w[ind] .^ 2)
+        @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) - 0.5sum(α .* w .^ 2)
         while !(llh - llhp > 0.)
             @info "llh" llh
             r *= 0.8
             w .= wp .+ g .* r
             mul!(a, X, w)
-            @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
-                @views 0.5sum(α[ind] .* w[ind] .^ 2)
+            @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) - 0.5sum(α .* w .^ 2)
         end
         @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
         if llh - llhp < tol || iter == maxiter
