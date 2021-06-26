@@ -75,7 +75,7 @@ function RVM!(
         ind = ind_h[findall(in(ind_nonzero), ind_h)]
         αtmp = copy(α[ind])
         wtmp = copy(w[ind])
-        g, gp, wp = (similar(αtmp) for _ = 1:3)
+        g, gp, wp = (copy(wtmp) for _ = 1:3)
         n_ind = size(ind, 1)
         # loop through batches
         @showprogress 0.5 "epoch $(iter-1) " for b ∈ 1:num_batches
