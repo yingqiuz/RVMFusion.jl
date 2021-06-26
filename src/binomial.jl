@@ -102,7 +102,7 @@ function RVM!(
         llh2[iter] /= num_batches
         # last iteration
         incr = (llh2[iter] - llh2[iter-1]) / llh2[iter-1]
-        println("epoch ", iter, " done. incr ", incr)
+        println("epoch ", iter-1, " done. incr ", incr)
         if abs(incr) < rtol || iter == maxiter
             if iter == maxiter
                 @warn "Not converged after $(maxiter) iterations."
@@ -150,6 +150,7 @@ function Logit!(
     #wp = similar(w)
     @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
     η  = [0.0001]
+    ind = findall(x -> x<(1/tol), α)
     for iter = 2:maxiter
         mul!(g, Xt, t .- y)
         g .-= α .* w
@@ -157,20 +158,22 @@ function Logit!(
         #ldiv!(qr(H), g)
         # update w
         copyto!(wp, w)
-        w .+= g .* η
+        w[ind] .+= @views g[ind] .* η
         mul!(a, X, w)
-        @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) - 0.5sum(α .* w .^ 2)
+        @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
+            @views 0.5sum(α[ind] .* w[ind] .^ 2)
         while !(llh - llhp > 0.)
             η .*= 0.8
-            w .= wp .+ g .* η
+            w[ind] .= wp[ind] .+ g[ind] .* η
             mul!(a, X, w)
-            @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) - 0.5sum(α .* w .^ 2)
+            @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
+                @views 0.5sum(α[ind] .* w[ind] .^ 2)
         end
         @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
         if llh - llhp < tol || iter == maxiter
             llh += 0.5sum(log.(α)) - 0.5d*log(2π)
             WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
-            α .= (1 .- α .* g) ./ (w .^ 2 .+ 1e-8)
+            α[ind] .= @views (1 .- α[ind] .* g[ind]) ./ (w[ind] .^ 2 .+ tol)
             #g .= 0.5 .* (w.^2 .+ g .- 1 ./ α)
             if iter == maxiter
                 @warn "Not converged in finding the posterior of wh."
