@@ -522,7 +522,7 @@ function Logit(
                 @debug "llh2" 0.5sum(wl .^ 2)
                 @debug "min wl" minimum(wl)
                 @debug "η" η
-                break
+                #break
             end
             #@debug "η" η
             #@debug "wl" wl
@@ -600,7 +600,7 @@ function Logit(
                 @debug "llh2" 0.5sum(wl .^ 2)
                 @debug "min wl" minimum(wl)
                 @debug "η" η
-                break
+                #break
             end
             #@debug "η" η
             #@debug "wl" wl
