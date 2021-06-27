@@ -517,6 +517,10 @@ function Logit(
     llhp=-Inf
     @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
     η = [0.0001]
+    @debug "g" findall(isnan, g)
+    @debug "α" α[findall(isnan, g)]
+    @debug "wl" wl[findall(isnan, g)]
+    @debug "wp" wp[findall(isnan, g)]
     for iter = 2:maxiter
         # make a step
         llh = grad!(wl, wh, wp, g, α, X, Xt, a, y, t, η, llhp)
