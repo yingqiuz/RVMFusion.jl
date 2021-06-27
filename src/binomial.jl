@@ -286,7 +286,7 @@ function RVM!(
         wltmp = copy(wl[ind_l])
         whtmp = copy(whsamples[ind_l, :])
         # iterate through batches
-        @showprogress 0.5 "epoch $(iter-1) " for b ∈ 1:num_batches
+        @showprogress 0.1 "epoch $(iter-1) " for b ∈ 1:num_batches
             if b != num_batches
                 XLtmp = copy(XL[(b-1)*BatchSize+1:b*BatchSize, ind_l])
                 ttmp = copy(t[(b-1)*BatchSize+1:b*BatchSize])
@@ -413,18 +413,18 @@ function RVM!(
                 XLtmp = copy(XL[(b-1)*BatchSize+1:end, ind_l])
                 ttmp = copy(t[(b-1)*BatchSize+1:end])
             end
-            g = zeros(T, 3n_ind + 1)
-            for nn ∈ 1:n_samples
-                g .+= Logit(whtmp[:, nn], wltmp, βtmp, XLtmp, transpose(XLtmp),
-                ttmp, atol, maxiter)
-            end
-            #g = whtmp |> eachcol |>
-            #Map(
-            #    x -> Logit(
-            #        x, wltmp, βtmp, XLtmp, transpose(XLtmp),
-            #        ttmp, atol, maxiter
-            #    )
-            #) |> Broadcasting() |> Folds.sum
+            #g = zeros(T, 3n_ind + 1)
+            #for nn ∈ 1:n_samples
+            #    g .+= Logit(whtmp[:, nn], wltmp, βtmp, XLtmp, transpose(XLtmp),
+            #    ttmp, atol, maxiter)
+            #end
+            g = whtmp |> eachcol |>
+            Map(
+                x -> Logit(
+                    x, wltmp, βtmp, XLtmp, transpose(XLtmp),
+                    ttmp, atol, maxiter
+                )
+            ) |> Broadcasting() |> Folds.sum
             g ./= n_samples
             llh[iter] += g[end] + 0.5sum(log.(βtmp)) - 0.5n_ind*log(2π)
             βtmp .= @views (
@@ -445,7 +445,7 @@ function RVM!(
             end
             XLtesttmp = copy(XLtest[:, ind_h[ind_l]])
             predictions = zeros(T, size(XLtest, 1))
-            @showprogress 0.5 "making predictions..." for b ∈ 1:num_batches
+            @showprogress 0.1 "making predictions..." for b ∈ 1:num_batches
                 if b != num_batches
                     XLtmp = copy(XL[(b-1)*BatchSize+1:b*BatchSize, ind_l])
                     ttmp = copy(t[(b-1)*BatchSize+1:b*BatchSize])
