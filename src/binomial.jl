@@ -487,7 +487,9 @@ function Logit(
     for iter = 2:maxiter
         # make a step
         llh = grad!(wl, wh, wp, g, α, X, Xt, a, y, t, η, llhp)
-        if llh - llhp < tol || iter == maxiter
+        η .= abs(sum((wl .- wp) .* (g .- gp))) ./
+            (sum((g .- gp) .^ 2) + 1e-8)
+        if llh - llhp < tol || iter == maxiter || η .< 1e-8
             if iter == maxiter
                 @warn "Not converged in finding the posterior of wl."
             end
@@ -499,7 +501,6 @@ function Logit(
             end
         else
             llhp = llh
-            η .= abs(sum((wl .- wp) .* (g .- gp))) ./ (sum((g .- gp) .^ 2) + 1e-8)
             # update gradient
             copyto!(gp, g)
         end
@@ -526,7 +527,9 @@ function Logit(
     for iter = 2:maxiter
         # make a step
         llh = grad!(wl, wh, wp, g, α, X, Xt, a, y, t, η, llhp)
-        if llh - llhp < tol || iter == maxiter
+        η .= abs(sum((wl .- wp) .* (g .- gp))) ./
+            (sum((g .- gp) .^ 2) + 1e-8)
+        if llh - llhp < tol || iter == maxiter || η .< 1e-8
             if iter == maxiter
                 @warn "Not converged in finding the posterior of wl."
             end
@@ -542,8 +545,6 @@ function Logit(
             end
         else
             llhp = llh
-            η .= abs(sum((wl .- wp) .* (g .- gp))) ./
-                (sum((g .- gp) .^ 2) + 1e-8)
             # update gradient
             copyto!(gp, g)
         end
