@@ -491,7 +491,44 @@ function Logit(
     @debug "wp" wp[findall(isnan, g)]
     for iter = 2:maxiter
         # make a step
-        llh = grad!(wl, wh, wp, g, α, X, Xt, a, y, t, η, llhp)
+        mul!(g, Xt, t .- y)
+        g .-= α .* wl
+        #ldiv!(factorize(H), g)
+        # update w
+        @debug "g" g
+        @debug "α" α
+        @debug "wl" wl
+        @debug "wp" wp
+        copyto!(wp, wl)
+        wl .+= g .* η
+        mul!(a, X, wl .+ wh)
+        @avx llh = -sum(log1p.(exp.((1.0 .- 2.0 .* t) .* a))) -
+            0.5sum(α .* wl .^ 2)
+        if llh === -Inf
+            @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
+            @debug "llh2" 0.5sum(α .* wl .^ 2)
+            @debug "llh2" 0.5sum(wl .^ 2)
+            @debug "min wl" minimum(wl)
+        end
+        while !(llh - llhp > 0.)
+            η .*= 0.8
+            wl .= wp .+ g .* η
+            mul!(a, X, wl .+ wh)
+            @avx llh = -sum(log1p.(exp.((1.0 .- 2.0 * t) .* a))) -
+                0.5sum(α .* wl .^ 2)
+            if η[1] < 1e-8 #|| llh === -Inf
+                @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
+                @debug "llh2" 0.5sum(α .* wl .^ 2)
+                @debug "llh2" 0.5sum(wl .^ 2)
+                @debug "min wl" minimum(wl)
+                @debug "η" η
+                break
+            end
+            #@debug "η" η
+            #@debug "wl" wl
+            #@debug "llh" llh
+        end
+        @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
         η .= abs(sum((wl .- wp) .* (g .- gp))) ./
             (sum((g .- gp) .^ 2) + 1e-8)
         if llh - llhp < tol || iter == maxiter || η[1] < 1e-8
@@ -532,7 +569,44 @@ function Logit(
     @debug "wp" wp[findall(isnan, g)]
     for iter = 2:maxiter
         # make a step
-        llh = grad!(wl, wh, wp, g, α, X, Xt, a, y, t, η, llhp)
+        mul!(g, Xt, t .- y)
+        g .-= α .* wl
+        #ldiv!(factorize(H), g)
+        # update w
+        @debug "g" g
+        @debug "α" α
+        @debug "wl" wl
+        @debug "wp" wp
+        copyto!(wp, wl)
+        wl .+= g .* η
+        mul!(a, X, wl .+ wh)
+        @avx llh = -sum(log1p.(exp.((1.0 .- 2.0 .* t) .* a))) -
+            0.5sum(α .* wl .^ 2)
+        if llh === -Inf
+            @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
+            @debug "llh2" 0.5sum(α .* wl .^ 2)
+            @debug "llh2" 0.5sum(wl .^ 2)
+            @debug "min wl" minimum(wl)
+        end
+        while !(llh - llhp > 0.)
+            η .*= 0.8
+            wl .= wp .+ g .* η
+            mul!(a, X, wl .+ wh)
+            @avx llh = -sum(log1p.(exp.((1.0 .- 2.0 * t) .* a))) -
+                0.5sum(α .* wl .^ 2)
+            if η[1] < 1e-8 || llh === -Inf
+                @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
+                @debug "llh2" 0.5sum(α .* wl .^ 2)
+                @debug "llh2" 0.5sum(wl .^ 2)
+                @debug "min wl" minimum(wl)
+                @debug "η" η
+                break
+            end
+            #@debug "η" η
+            #@debug "wl" wl
+            #@debug "llh" llh
+        end
+        @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
         η .= abs(sum((wl .- wp) .* (g .- gp))) ./
             (sum((g .- gp) .^ 2) + 1e-8)
         if llh - llhp < tol || iter == maxiter || η[1] < 1e-8
