@@ -79,7 +79,7 @@ function RVM!(
     # preallocate type-II likelihood (evidence) vector
     llh = zeros(T, maxiter)
     llh[1] = -Inf
-    w = ones(T, d, K) .* 1e-8
+    w = zeros(T, d, K)
     #αp = ones(T, d, K)
     num_batches = convert(Int64, round(n / BatchSize))
     A1, Y1, logY1 = (Matrix{T}(undef, BatchSize, K) for _ = 1:3)
@@ -94,7 +94,7 @@ function RVM!(
         wp = copy(wtmp)
         g, gp = (zeros(T, n_ind, K) for _ = 1:2)
         η = [0.0001] # initial step size
-        ind_flat = findall(x -> x < (1/atol), αtmp[:])
+        #ind_flat = findall(x -> x < (1/atol), αtmp[:])
         @showprogress 0.5 "epoch $(iter)" for b ∈ 1:num_batches
             if b != num_batches
                 Xtmp = copy(X[(b-1)*BatchSize+1:b*BatchSize, ind])
@@ -102,7 +102,7 @@ function RVM!(
                 llh[iter] += Logit!(
                     wtmp, αtmp, Xtmp,
                     ttmp, atol, maxiter,
-                    A1, Y1, logY1, η, g, gp, wp, ind_flat
+                    A1, Y1, logY1, η, g, gp, wp#, ind_flat
                 ) / num_batches
             else  # the last batch
                 Xtmp = copy(X[(b-1)*BatchSize+1:end, ind])
@@ -110,7 +110,7 @@ function RVM!(
                 llh[iter] += Logit!(
                     wtmp, αtmp, Xtmp,
                     ttmp, atol, maxiter,
-                    A2, Y2, logY2, η, g, gp, wp, ind_flat
+                    A2, Y2, logY2, η, g, gp, wp#, ind_flat
                 ) / num_batches
             end
         end
@@ -172,7 +172,7 @@ function Logit!(
     t::AbstractMatrix{T}, tol::Float64, maxiter::Int64,
     A::AbstractMatrix{T}, Y::AbstractMatrix{T}, logY::AbstractMatrix{T},
     η::AbstractArray{T}, g::AbstractMatrix{T}, gp::AbstractMatrix{T},
-    wp::AbstractMatrix{T}, ind::AbstractVector{Int64}
+    wp::AbstractMatrix{T}#, ind::AbstractVector{Int64}
 ) where T<:Real
     n, K = size(t)
     d = size(X, 2)
@@ -184,19 +184,22 @@ function Logit!(
     for iter = 2:maxiter
         # update gradient
         mul!(g, Xt, t .- Y)
-        g[ind] .-= @views w[ind] .* α[ind]
+        #g[ind] .-= @views w[ind] .* α[ind]
+        g .-= w .* α
         copyto!(wp, w)
-        w[ind] .+= @views g[ind] .* η
+        #w[ind] .+= @views g[ind] .* η
+        w .+= g .* η
         mul!(A, X, w)
         @avx logY .= A .- log.(sum(exp.(A), dims=2))
         # update likelihood
-        llh = @views -0.5sum(α[ind] .* w[ind] .* w[ind]) + sum(t .* logY)
+        #llh = @views -0.5sum(α[ind] .* w[ind] .* w[ind]) + sum(t .* logY)
+        llh = -0.5sum(α .* w .* w) + sum(t .* logY)
         while !(llh - llhp > 0) # line search
             η .*= 0.8
-            w[ind] .= @views wp[ind] .+ g[ind] .* η
+            w .= wp .+ g .* η
             mul!(A, X, w)
             @avx logY .= A .- log.(sum(exp.(A), dims=2))
-            llh = @views -0.5sum(α[ind] .* w[ind] .* w[ind]) + sum(t .* logY)
+            llh = -0.5sum(α .* w .* w) + sum(t .* logY)
         end
         @avx Y .= exp.(logY)
         if llh - llhp < tol || iter == maxiter
