@@ -412,13 +412,18 @@ function RVM!(
                 XLtmp = copy(XL[(b-1)*BatchSize+1:end, ind_l])
                 ttmp = copy(t[(b-1)*BatchSize+1:end])
             end
-            g = whtmp |> eachcol |>
-            Map(
-                x -> Logit(
-                    x, wltmp, βtmp, XLtmp, transpose(XLtmp),
-                    ttmp, atol, maxiter
-                )
-            ) |> Broadcasting() |> Folds.sum
+            g = zeros(T, 3n_ind + 1)
+            for nn ∈ 1:n_samples
+                g .+= Logit(whtmp[:, nn], wltmp, βtmp, XLtmp, transpose(XLtmp),
+                ttmp, atol, maxiter)
+            end
+            #g = whtmp |> eachcol |>
+            #Map(
+            #    x -> Logit(
+            #        x, wltmp, βtmp, XLtmp, transpose(XLtmp),
+            #        ttmp, atol, maxiter
+            #    )
+            #) |> Broadcasting() |> Folds.sum
             g ./= n_samples
             llh[iter] += g[end] + 0.5sum(log.(βtmp)) - 0.5n_ind*log(2π)
             βtmp .= @views (
