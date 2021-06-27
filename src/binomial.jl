@@ -74,7 +74,7 @@ function RVM!(
         ind_h = findall(α .< (1/rtol)) # index of nonzeros
         ind = ind_h[findall(in(ind_nonzero), ind_h)]
         αtmp = copy(α[ind])
-        wtmp = copy(w[ind])
+        wtmp = params(copy(w[ind]))
         g, gp, wp = (similar(αtmp) for _ = 1:3)
         n_ind = size(ind, 1)
         # loop through batches

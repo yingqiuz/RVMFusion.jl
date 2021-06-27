@@ -2,6 +2,8 @@
 module RVMFusion
 using Statistics, LinearAlgebra, StatsBase, Distributions
 using Transducers, Folds, ProgressMeter, LoopVectorization
+using Flux
+using Flux.Optimise: update!
 
 export RVM, RVM!
 export sigmoid, softmax, f1, predict
