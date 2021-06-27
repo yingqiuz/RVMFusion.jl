@@ -574,16 +574,24 @@ function grad!(
     mul!(a, X, wl .+ wh)
     @avx llh = -sum(log1p.(exp.((1.0 .- 2.0 .* t) .* a))) -
         0.5sum(α .* wl .^ 2)
-    @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
-    @debug "llh2" 0.5sum(α .* wl .^ 2)
-    @debug "llh2" 0.5sum(wl .^ 2)
-    @debug "min wl" minimum(wl)
+    if llh === -Inf
+        @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
+        @debug "llh2" 0.5sum(α .* wl .^ 2)
+        @debug "llh2" 0.5sum(wl .^ 2)
+        @debug "min wl" minimum(wl)
+    end
     while !(llh - llhp >= 0.)
         η .*= 0.8
         wl .= wp .+ g .* η
         mul!(a, X, wl .+ wh)
         @avx llh = -sum(log1p.(exp.((1.0 .- 2.0 * t) .* a))) -
             0.5sum(α .* wl .^ 2)
+        if η[1] < 1e-8 || llh === -Inf
+            @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
+            @debug "llh2" 0.5sum(α .* wl .^ 2)
+            @debug "llh2" 0.5sum(wl .^ 2)
+            @debug "min wl" minimum(wl)
+        end
         #@debug "η" η
         #@debug "wl" wl
         #@debug "llh" llh
