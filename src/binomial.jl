@@ -390,6 +390,7 @@ function RVM!(
         ),
         n_samples
     )
+    @info "whsamples" whsamples
     # remove irrelevant columns
     XL = XL[:, ind_h]
     β = β[ind_h]
@@ -400,7 +401,7 @@ function RVM!(
         ind_l = findall(β .< (1/rtol)) # optional
         n_ind = size(ind_l, 1)
         if n_ind == 0
-            return predict(model, XLtest[:, ind_h])
+            return predict(model, XLtest)
         end
         n_ind = size(ind_l, 1)
         βtmp = copy(β[ind_l])
@@ -409,7 +410,6 @@ function RVM!(
         # iterate through batches
         println("epoch $(iter-1). Starting...")
         @showprogress 0.5 "epoch $(iter-1) " for b ∈ 1:num_batches
-        @info "b" b
             if b != num_batches
                 XLtmp = copy(XL[(b-1)*BatchSize+1:b*BatchSize, ind_l])
                 ttmp = copy(t[(b-1)*BatchSize+1:b*BatchSize])
@@ -482,13 +482,13 @@ function Logit(
     wp, g, gp = (zeros(T, d) for _ = 1:3)
     a, y = (Vector{T}(undef, n) for _ = 1:2)
     mul!(a, X, wh .+ wl)
-    llhp, llh = (-Inf, -Inf)
+    llhp = -Inf
     @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
     η = [0.0001]
-    @debug "g" findall(isnan, g)
-    @debug "α" α[findall(isnan, g)]
-    @debug "wl" wl[findall(isnan, g)]
-    @debug "wp" wp[findall(isnan, g)]
+    #@debug "g" findall(isnan, g)
+    #@debug "α" α[findall(isnan, g)]
+    #@debug "wl" wl[findall(isnan, g)]
+    #@debug "wp" wp[findall(isnan, g)]
     for iter = 2:maxiter
         # make a step
         mul!(g, Xt, t .- y)
@@ -502,13 +502,17 @@ function Logit(
         copyto!(wp, wl)
         wl .+= g .* η
         mul!(a, X, wl .+ wh)
-        @avx llh = -sum(log1p.(exp.((1.0 .- 2.0 .* t) .* a))) -
+        llh = @avx -sum(log1p.(exp.((1.0 .- 2.0 .* t) .* a))) -
             0.5sum(α .* wl .^ 2)
-        if llh === -Inf
+        if !(llh - llhp > 0.)
             @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
             @debug "llh2" 0.5sum(α .* wl .^ 2)
             @debug "llh2" 0.5sum(wl .^ 2)
             @debug "min wl" minimum(wl)
+            @debug "wl" wl
+            @debug "wp" wp
+            @debug "η" η
+            @debug "g" g
         end
         while !(llh - llhp > 0.)
             η .*= 0.8
@@ -516,14 +520,14 @@ function Logit(
             mul!(a, X, wl .+ wh)
             @avx llh = -sum(log1p.(exp.((1.0 .- 2.0 .* t) .* a))) -
                 0.5sum(α .* wl .^ 2)
-            if η[1] < 1e-8 #|| llh === -Inf
-                @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
-                @debug "llh2" 0.5sum(α .* wl .^ 2)
-                @debug "llh2" 0.5sum(wl .^ 2)
-                @debug "min wl" minimum(wl)
-                @debug "η" η
+            #if η[1] < 1e-8 #|| llh === -Inf
+            #    @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
+            #    @debug "llh2" 0.5sum(α .* wl .^ 2)
+            #    @debug "llh2" 0.5sum(wl .^ 2)
+            #    @debug "min wl" minimum(wl)
+            #    @debug "η" η
                 #break
-            end
+            #end
             #@debug "η" η
             #@debug "wl" wl
             #@debug "llh" llh
