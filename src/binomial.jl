@@ -202,8 +202,10 @@ function epoch!(
     βtmp = copy(β[ind_l])
     wltmp = copy(wl[ind_l])
     whtmp = copy(whsamples[ind_l, :])
+    println("epoch $(iter-1). Starting...")
     # iterate through batches
     @showprogress 0.5 "epoch $(iter-1) " for b ∈ 1:num_batches
+        @info "batch" b
         if b != num_batches
             XLtmp = copy(XL[(b-1)*BatchSize+1:b*BatchSize, ind_l])
             ttmp = copy(t[(b-1)*BatchSize+1:b*BatchSize])
@@ -405,7 +407,9 @@ function RVM!(
         wltmp = copy(wl[ind_l])
         whtmp = copy(whsamples[ind_l, :])
         # iterate through batches
+        println("epoch $(iter-1). Starting...")
         @showprogress 0.5 "epoch $(iter-1) " for b ∈ 1:num_batches
+        @info "b" b
             if b != num_batches
                 XLtmp = copy(XL[(b-1)*BatchSize+1:b*BatchSize, ind_l])
                 ttmp = copy(t[(b-1)*BatchSize+1:b*BatchSize])
