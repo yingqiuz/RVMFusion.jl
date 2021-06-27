@@ -154,20 +154,20 @@ function Logit!(
         copyto!(gp, g)
         mul!(g, Xt, t .- y)
         g .-= α .* w
-        @debug "g" findall(isnan, g)
-        @debug "gp" findall(isnan, gp)
-        @debug "α" α[findall(isnan, g)]
-        @debug "w" w[findall(isnan, g)]
-        @debug "wp" wp[findall(isnan, g)]
+        #@debug "g" findall(isnan, g)
+        #@debug "gp" findall(isnan, gp)
+        #@debug "α" α[findall(isnan, g)]
+        #@debug "w" w[findall(isnan, g)]
+        #@debug "wp" wp[findall(isnan, g)]
         copyto!(wp, w)
         w .+= g .* r
         mul!(a, X, w)
         @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) - 0.5sum(α .* w .^ 2)
-        @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
-        @debug "llh2" 0.5sum(α .* w .^ 2)
-        @debug "llh2" 0.5sum(w .^ 2)
-        @debug "w" findall(isnan, w)
-        @debug "min w" minimum(w)
+        #@debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
+        #@debug "llh2" 0.5sum(α .* w .^ 2)
+        #@debug "llh2" 0.5sum(w .^ 2)
+        #@debug "w" findall(isnan, w)
+        #@debug "min w" minimum(w)
         while !(llh - llhp > 0.)
             r *= 0.8
             w .= wp .+ g .* r
@@ -184,9 +184,9 @@ function Logit!(
             end
             return llh
         end
-        @debug "r1" abs(sum((w .- wp) .* (g .- gp)))
-        @debug "r2" (sum((g .- gp) .^ 2) + 1e-4)
-        @debug "g - gp, w - wp" g .- gp w .- wp
+        #@debug "r1" abs(sum((w .- wp) .* (g .- gp)))
+        #@debug "r2" (sum((g .- gp) .^ 2) + 1e-4)
+        #@debug "g - gp, w - wp" g .- gp w .- wp
         r .= abs(sum((w .- wp) .* (g .- gp))) / (sum((g .- gp) .^ 2) + 1e-8)
         llhp = llh
     end
@@ -488,7 +488,7 @@ function Logit(
             end
         else
             llhp = llh
-            η .= abs(sum((wl .- wp) .* (g .- gp))) ./ (sum((g .- gp) .^ 2) + 1e-4)
+            η .= abs(sum((wl .- wp) .* (g .- gp))) ./ (sum((g .- gp) .^ 2) + 1e-8)
             # update gradient
             copyto!(gp, g)
         end
