@@ -460,7 +460,7 @@ function RVM!(
                 predictions .+= (
                     whsamples[ind_l, :] |> eachcol |> Map(
                         x -> Logit(
-                            x, wltmp, βtmp, XLtmp, transpose(XLtmp),
+                            x, copy(wltmp), βtmp, XLtmp, transpose(XLtmp),
                             ttmp, XLtesttmp, atol, maxiter, true
                         )
                     ) |> Broadcasting() |> Folds.sum
@@ -472,13 +472,13 @@ function RVM!(
 end
 
 function Logit(
-    wh::AbstractVector{T}, wltmp::AbstractVector{T}, α::AbstractVector{T},
+    wh::AbstractVector{T}, wl::AbstractVector{T}, α::AbstractVector{T},
     X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
     t::AbstractVector{T}, tol::Float64, maxiter::Int64,
     is_final::Bool=false
 ) where T<:Real
     n, d = size(X)
-    wl = copy(wltmp)
+    #fill!(wl, 0.)
     wp, g, gp = (zeros(T, d) for _ = 1:3)
     a, y = (Vector{T}(undef, n) for _ = 1:2)
     mul!(a, X, wh .+ wl)
@@ -554,12 +554,12 @@ function Logit(
 end
 
 function Logit(
-    wh::AbstractVector{T}, wltmp::AbstractVector{T}, α::AbstractVector{T},
+    wh::AbstractVector{T}, wl::AbstractVector{T}, α::AbstractVector{T},
     X::AbstractMatrix{T}, Xt::AbstractMatrix{T}, t::AbstractVector{T},
     Xtest::AbstractMatrix{T}, tol::Float64, maxiter::Int64,
     is_final::Bool=false
 ) where T<:Real
-    wl = copy(wltmp)
+    fill!(wl, 0.)
     n, d = size(X)
     wp, g, gp = (zeros(T, d) for _ = 1:3)
     a, y = (Vector{T}(undef, n) for _ = 1:2)
