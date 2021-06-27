@@ -2,13 +2,13 @@
 struct BnRVModel{T<:Real} <: Model
     w::AbstractArray{T, 1}
     H::AbstractArray{T, 2}
-    ind::AbstractArray{Int32, 1}
+    ind::AbstractArray{Int64, 1}
 end
 
 struct BnFusedRVModel{T<:Real} <: Model
     w::AbstractArray{T, 2}
     H::AbstractArray{T, 3}
-    ind::AbstractArray{Int32, 1}
+    ind::AbstractArray{Int64, 1}
 end
 
 # predict function
@@ -50,8 +50,8 @@ end
 # core algorithm
 function RVM!(
     X::AbstractMatrix{T}, t::AbstractVector{T}, α::AbstractVector{T};
-    rtol::Float32=1e-6, atol=1e-6, maxiter::Int32=10000,
-    BatchSize::Int32=size(X, 1)#, StepSize::Float32=0.0001
+    rtol::Float64=1e-6, atol=1e-6, maxiter::Int64=10000,
+    BatchSize::Int64=size(X, 1)#, StepSize::Float64=0.0001
 ) where T<:Real
 # default full batch
     n = size(X, 1)
@@ -65,7 +65,7 @@ function RVM!(
     llh2[1] = -Inf
     w = zeros(T, d)
     # pre-allocate memories
-    num_batches = convert(Int32, round(n / BatchSize))
+    num_batches = convert(Int64, round(n / BatchSize))
     a1, y1 = (Vector{T}(undef, BatchSize) for _ = 1:2)
     a2, y2 = (Vector{T}(undef, n - BatchSize * (num_batches-1)) for _ = 1:2)
     ind_nonzero = findall(x -> x > 1e-3, std(X, dims=1)[:])
@@ -137,8 +137,8 @@ end
 function Logit!(
     w::AbstractVector{T}, α::AbstractVector{T},
     X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
-    t::AbstractVector{T}, tol::Float32,
-    maxiter::Int32, a::AbstractVector{T},
+    t::AbstractVector{T}, tol::Float64,
+    maxiter::Int64, a::AbstractVector{T},
     y::AbstractVector{T}, g::AbstractVector{T},
     gp::AbstractVector{T}, wp::AbstractVector{T}
 ) where T<:Real
@@ -195,8 +195,8 @@ end
 function epoch!(
     β::AbstractVector{T}, whsamples::AbstractMatrix{T},
     wl::AbstractVector{T}, XL::AbstractMatrix{T}, t::AbstractVector{T},
-    llh::AbstractVector{T}, ind_l::AbstractVector{Int32},
-    num_batches::Int32
+    llh::AbstractVector{T}, ind_l::AbstractVector{Int64},
+    num_batches::Int64
 ) where T<:Real
     n_ind = size(ind_l, 1)
     βtmp = copy(β[ind_l])
@@ -240,15 +240,15 @@ function RVM!(
     model::BnRVModel{T}, XL::AbstractMatrix{T},
     t::AbstractVector{T}, #XLtest::AbstractMatrix{T},
     α::AbstractVector{T}, β::AbstractVector{T};
-    rtol::Float32=1e-6, atol::Float32=1e-6,
-    maxiter::Int32=10000, n_samples::Int32=5000,
-    BatchSize::Int32=size(XL, 1)#, StepSize::Float32=0.01
+    rtol::Float64=1e-6, atol::Float64=1e-6,
+    maxiter::Int64=10000, n_samples::Int64=5000,
+    BatchSize::Int64=size(XL, 1)#, StepSize::Float64=0.01
 ) where T<:Real
     n, d = size(XL)
     # should add more validity checks
     size(t, 1) == n || throw(DimensionMismatch("Sizes of X and t mismatch."))
     size(α, 1) == d || throw(DimensionMismatch("Sizes of X and initial α mismatch."))
-    num_batches = convert(Int32, round(n / BatchSize))
+    num_batches = convert(Int64, round(n / BatchSize))
     # preallocate type-II likelihood (evidence) vector
     llh = zeros(T, maxiter)
     llh[1] = -Inf
@@ -359,15 +359,15 @@ function RVM!(
     model::BnRVModel{T}, XL::AbstractMatrix{T},
     t::AbstractVector{T}, XLtest::AbstractMatrix{T},
     α::AbstractVector{T}, β::AbstractVector{T};
-    rtol::Float32=1e-6, atol::Float32=1e-6,
-    maxiter::Int32=10000, n_samples::Int32=5000,
-    BatchSize::Int32=size(XL, 1)
+    rtol::Float64=1e-6, atol::Float64=1e-6,
+    maxiter::Int64=10000, n_samples::Int64=5000,
+    BatchSize::Int64=size(XL, 1)
 ) where T<:Real
     n, d = size(XL)
     # should add more validity checks
     size(t, 1) == n || throw(DimensionMismatch("Sizes of X and t mismatch."))
     size(α, 1) == d || throw(DimensionMismatch("Sizes of X and initial α mismatch."))
-    num_batches = convert(Int32, round(n / BatchSize))
+    num_batches = convert(Int64, round(n / BatchSize))
     # preallocate type-II likelihood (evidence) vector
     llh = zeros(T, maxiter)
     llh[1] = -Inf
@@ -425,7 +425,7 @@ function RVM!(
             g = whtmp |> eachcol |>
             Map(
                 x -> Logit(
-                    x, wltmp, βtmp, XLtmp, transpose(XLtmp),
+                    x, copy(wltmp), βtmp, XLtmp, transpose(XLtmp),
                     ttmp, atol, maxiter
                 )
             ) |> Broadcasting() |> Folds.sum
@@ -474,7 +474,7 @@ end
 function Logit(
     wh::AbstractVector{T}, wltmp::AbstractVector{T}, α::AbstractVector{T},
     X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
-    t::AbstractVector{T}, tol::Float32, maxiter::Int32,
+    t::AbstractVector{T}, tol::Float64, maxiter::Int64,
     is_final::Bool=false
 ) where T<:Real
     n, d = size(X)
@@ -556,7 +556,7 @@ end
 function Logit(
     wh::AbstractVector{T}, wltmp::AbstractVector{T}, α::AbstractVector{T},
     X::AbstractMatrix{T}, Xt::AbstractMatrix{T}, t::AbstractVector{T},
-    Xtest::AbstractMatrix{T}, tol::Float32, maxiter::Int32,
+    Xtest::AbstractMatrix{T}, tol::Float64, maxiter::Int64,
     is_final::Bool=false
 ) where T<:Real
     wl = copy(wltmp)
@@ -639,7 +639,7 @@ function grad!(
     wl::AbstractVector{T}, wh::AbstractVector{T}, wp::AbstractVector{T},
     g::AbstractVector{T}, α::AbstractVector{T}, X::AbstractMatrix{T},
     Xt::AbstractMatrix{T}, a::AbstractVector{T}, y::AbstractVector{T},
-    t::AbstractVector{T}, η::AbstractVector{Float32}, llhp::Float32
+    t::AbstractVector{T}, η::AbstractVector{Float64}, llhp::Float64
 ) where T<:Real
     mul!(g, Xt, t .- y)
     g .-= α .* wl
