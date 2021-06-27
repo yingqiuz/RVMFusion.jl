@@ -155,20 +155,20 @@ function Logit!(
         copyto!(gp, g)
         mul!(g, Xt, t .- y)
         g .-= α .* w
-        #@debug "g" findall(isnan, g)
-        #@debug "gp" findall(isnan, gp)
-        #@debug "α" α[findall(isnan, g)]
-        #@debug "w" w[findall(isnan, g)]
-        #@debug "wp" wp[findall(isnan, g)]
+        @debug "g" findall(isnan, g)
+        @debug "gp" findall(isnan, gp)
+        @debug "α" α[findall(isnan, g)]
+        @debug "w" w[findall(isnan, g)]
+        @debug "wp" wp[findall(isnan, g)]
         copyto!(wp, w)
         w .+= g .* r
         mul!(a, X, w)
         @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) - sum(α .* w .^ 2)/2
-        #@debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
-        #@debug "llh2" 0.5sum(α .* w .^ 2)
-        #@debug "llh2" 0.5sum(w .^ 2)
-        #@debug "w" findall(isnan, w)
-        #@debug "min w" minimum(w)
+        @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
+        @debug "llh2" 0.5sum(α .* w .^ 2)
+        @debug "llh2" 0.5sum(w .^ 2)
+        @debug "w" findall(isnan, w)
+        @debug "min w" minimum(w)
         while !(llh - llhp > 0)
             r ./= 2
             w .= wp .+ g .* r
