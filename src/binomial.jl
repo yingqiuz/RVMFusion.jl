@@ -78,7 +78,7 @@ function RVM!(
         g, gp, wp = (copy(wtmp) for _ = 1:3)
         n_ind = size(ind, 1)
         # loop through batches
-        @showprogress 0.5 "epoch $(iter-1) " for b ∈ 1:num_batches
+        @showprogress 0.1 "epoch $(iter-1) " for b ∈ 1:num_batches
             #copyto!(αgradp, αgrad)
             if b != num_batches
                 Xtmp = copy(X[(b-1)*BatchSize+1:b*BatchSize, ind])
@@ -430,11 +430,11 @@ function RVM!(
             βtmp .= @views (
                 1 .- βtmp .* g[n_ind+1:2n_ind]
             ) ./ (g[1:n_ind] .+ 1e-8)
-            wltmp .= @view g[2n_ind+1:3n_ind]
+            #wltmp .= @view g[2n_ind+1:3n_ind]
             #βsum[ind_l] .+= @views g[1:end-1] .^ 2
         end
         β[ind_l] .= βtmp
-        wl[ind_l] .= wltmp
+        #wl[ind_l] .= wltmp
         llh[iter] /= num_batches
         incr = (llh[iter] - llh[iter-1]) / llh[iter-1]
         println("epoch ", iter-1, " done. incr ", incr)
