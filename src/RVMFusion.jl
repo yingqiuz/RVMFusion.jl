@@ -13,7 +13,7 @@ include("utils.jl")
 include("binomial.jl")
 include("multinomial.jl")
 
-function RVM(X::Matrix{T}, t::Vector{Int32}, α_init::Float32=1.0;
+function RVM(X::Matrix{T}, t::Vector{Int}, α_init::T=convert(T, 1.0);
              kw...) where T<:Real
     n = size(X, 1)
     d = size(X, 2)
@@ -33,8 +33,8 @@ function RVM(X::Matrix{T}, t::Vector{Int32}, α_init::Float32=1.0;
 end
 
 function RVM(
-    XH::Matrix{T}, XL::Matrix{T}, t::Vector{Int32},
-    α_init::Float32=1.0, β_init::Float32=1.0;
+    XH::Matrix{T}, XL::Matrix{T}, t::Vector{Int},
+    α_init::T=convert(T, 1.0), β_init::T=convert(T, 1.0);
     kw...
 ) where T<:Real
     n = size(XH, 1)
@@ -57,9 +57,9 @@ function RVM(
 end
 
 function RVM(
-    XH::Matrix{T}, XL::Matrix{T}, t::Vector{Int32},
-    XLtest::Matrix{T}, α_init::Float32=1.0,
-    β_init::Float32=1.0; kw...
+    XH::Matrix{T}, XL::Matrix{T}, t::Vector{Int},
+    XLtest::Matrix{T}, α_init::T=convert(T, 1.0),
+    β_init::T=convert(T, 1.0); kw...
 ) where T<:Real
     n = size(XH, 1)
     d = size(XH, 2)
@@ -85,9 +85,9 @@ function RVM!(
     XH::AbstractMatrix{T}, XL::AbstractMatrix{T},
     t::AbstractVector{T},
     α::AbstractVector{T}, β::AbstractVector{T};
-    rtol::Float32=1e-6, atol::Float32=1e-6,
-    maxiter::Int32=10000, n_samples::Int32=5000,
-    BatchSize::Int32=size(XL, 1)#, StepSize::Float32=0.01
+    rtol::T=convert(T, 1e-5), atol::T=convert(T, 1e-8),
+    maxiter::Int=10000, n_samples::Int=5000,
+    BatchSize::Int=size(XL, 1)#, StepSize::T=0.01
 ) where T<:Real
     model = RVM!(
         XH, t, α;
@@ -105,9 +105,9 @@ function RVM!(
     XH::AbstractMatrix{T}, XL::AbstractMatrix{T},
     t::AbstractVector{T}, XLtest::AbstractMatrix{T},
     α::AbstractVector{T}, β::AbstractVector{T};
-    rtol::Float32=1e-6, atol::Float32=1e-6,
-    maxiter::Int32=10000, n_samples::Int32=5000,
-    BatchSize::Int32=size(XL, 1)#, StepSize::Float32=0.01
+    rtol::T=convert(T, 1e-5), atol::T=convert(T, 1e-8),
+    maxiter::Int=10000, n_samples::Int=5000,
+    BatchSize::Int=size(XL, 1)#, StepSize::T=0.01
 ) where T<:Real
     model = RVM!(
         XH, t, α;

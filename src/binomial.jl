@@ -2,13 +2,13 @@
 struct BnRVModel{T<:Real} <: Model
     w::AbstractArray{T, 1}
     H::AbstractArray{T, 2}
-    ind::AbstractArray{Int64, 1}
+    ind::AbstractArray{Int, 1}
 end
 
 struct BnFusedRVModel{T<:Real} <: Model
     w::AbstractArray{T, 2}
     H::AbstractArray{T, 3}
-    ind::AbstractArray{Int64, 1}
+    ind::AbstractArray{Int, 1}
 end
 
 # predict function
@@ -16,7 +16,7 @@ function predict(
     model::BnRVModel{T}, X::AbstractMatrix{T}
 ) where T <: Real
     Xview = @view X[:, model.ind]
-    p = (1 .+ π .* diag(Xview * model.H * transpose(Xview)) ./ 8).^(-0.5) .* (Xview * model.w)
+    p = (1 .+ diag(Xview * model.H * transpose(Xview)) .* π ./ 8).^(-0.5f0) .* (Xview * model.w)
     p .= @avx 1 ./ (1 .+ exp.(-1 .* p))
     return p
 end
@@ -38,11 +38,11 @@ function predict(
 ) where T <: Real
     n, d = size(X)
     p = Vector{T}(undef, n)
-    fill!(p, 1.)
+    fill!(p, 1)
     @turbo for nn ∈ 1:n, i ∈ 1:d, j ∈ 1:d
-        p[nn] += (π / 8) * X[nn, i] * H[i, j] * X[nn, j]
+        p[nn] += X[nn, i] * H[i, j] * X[nn, j] * π / 8
     end
-    p .= p.^(-0.5)
+    p .= p.^(-0.5f0)
     p .*= X * w
     return @avx 1 ./ (1 .+ exp.(-1 .* p))
 end
@@ -50,25 +50,25 @@ end
 # core algorithm
 function RVM!(
     X::AbstractMatrix{T}, t::AbstractVector{T}, α::AbstractVector{T};
-    rtol::Float64=1e-6, atol=1e-6, maxiter::Int64=10000,
-    BatchSize::Int64=size(X, 1)#, StepSize::Float64=0.0001
+    rtol::T=convert(T, 1e-5), atol::T=convert(T, 1e-5), maxiter::Int=10000,
+    BatchSize::Int=size(X, 1), ϵ::T=convert(T, 1e-8)
 ) where T<:Real
 # default full batch
     n = size(X, 1)
     d = size(X, 2)
     size(t, 1) == n || throw(DimensionMismatch("Sizes of X and t mismatch."))
     size(α, 1) == d || throw(DimensionMismatch("Sizes of X and initial α mismatch."))
-    h = ones(T, n)
-    h[findall(iszero, t)] .= -1.0
+    #h = ones(T, n)
+    #h[findall(iszero, t)] .= -1.0
     # preallocate type-II likelihood (evidence) vector
     llh2 = zeros(T, maxiter)
-    llh2[1] = -Inf
+    llh2[1] = -Inf32
     w = zeros(T, d)
     # pre-allocate memories
-    num_batches = convert(Int64, round(n / BatchSize))
+    num_batches = convert(Int, round(n / BatchSize))
     a1, y1 = (Vector{T}(undef, BatchSize) for _ = 1:2)
     a2, y2 = (Vector{T}(undef, n - BatchSize * (num_batches-1)) for _ = 1:2)
-    ind_nonzero = findall(x -> x > 1e-3, std(X, dims=1)[:])
+    ind_nonzero = findall(x -> x > 0.001f0, std(X, dims=1)[:])
     println("Setup done.")
     for iter ∈ 2:maxiter
         ind_h = findall(α .< (1/rtol)) # index of nonzeros
@@ -137,19 +137,20 @@ end
 function Logit!(
     w::AbstractVector{T}, α::AbstractVector{T},
     X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
-    t::AbstractVector{T}, tol::Float64,
-    maxiter::Int64, a::AbstractVector{T},
+    t::AbstractVector{T}, tol::T,
+    maxiter::Int, a::AbstractVector{T},
     y::AbstractVector{T}, g::AbstractVector{T},
-    gp::AbstractVector{T}, wp::AbstractVector{T}
+    gp::AbstractVector{T}, wp::AbstractVector{T},
+    ϵ::T=convert(T, 1e-8)
 ) where T<:Real
     n = size(X, 1)
     d = size(X, 2)
     #gp = zeros(T, d)
     mul!(a, X, w)
-    llhp = -Inf
+    llhp = -Inf32
     #wp = similar(w)
-    @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
-    r  = [0.0001]
+    @avx y .= 1 ./ (1 .+ exp.(-1 .* a))
+    r  = [0.0001f0]
     for iter = 2:maxiter
         copyto!(gp, g)
         mul!(g, Xt, t .- y)
@@ -162,23 +163,23 @@ function Logit!(
         copyto!(wp, w)
         w .+= g .* r
         mul!(a, X, w)
-        @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) - 0.5sum(α .* w .^ 2)
+        @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) - sum(α .* w .^ 2)/2
         #@debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
         #@debug "llh2" 0.5sum(α .* w .^ 2)
         #@debug "llh2" 0.5sum(w .^ 2)
         #@debug "w" findall(isnan, w)
         #@debug "min w" minimum(w)
-        while !(llh - llhp > 0.)
-            r *= 0.8
+        while !(llh - llhp > 0)
+            r ./= 2
             w .= wp .+ g .* r
             mul!(a, X, w)
-            @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) - 0.5sum(α .* w .^ 2)
+            @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) - sum(α .* w .^ 2)/2
         end
-        @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
+        @avx y .= 1 ./ (1 .+ exp.(-1 .* a))
         if llh - llhp < tol || iter == maxiter
-            llh += 0.5sum(log.(α)) - 0.5d*log(2π)
+            llh += sum(log.(α))/2 - d*log(2π)/2
             WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
-            α .= (1 .- α .* g) ./ (w .^ 2 .+ 1e-8)
+            α .= (1 .- α .* g) ./ (w .^ 2 .+ ϵ)
             if iter == maxiter
                 @warn "Not converged in finding the posterior of wh."
             end
@@ -187,50 +188,9 @@ function Logit!(
         #@debug "r1" abs(sum((w .- wp) .* (g .- gp)))
         #@debug "r2" (sum((g .- gp) .^ 2) + 1e-4)
         #@debug "g - gp, w - wp" g .- gp w .- wp
-        r .= abs(sum((w .- wp) .* (g .- gp))) / (sum((g .- gp) .^ 2) + 1e-8)
+        r .= abs(sum((w .- wp) .* (g .- gp))) / (sum((g .- gp) .^ 2) + ϵ)
         llhp = llh
     end
-end
-
-function epoch!(
-    β::AbstractVector{T}, whsamples::AbstractMatrix{T},
-    wl::AbstractVector{T}, XL::AbstractMatrix{T}, t::AbstractVector{T},
-    llh::AbstractVector{T}, ind_l::AbstractVector{Int64},
-    num_batches::Int64
-) where T<:Real
-    n_ind = size(ind_l, 1)
-    βtmp = copy(β[ind_l])
-    wltmp = copy(wl[ind_l])
-    whtmp = copy(whsamples[ind_l, :])
-    println("epoch $(iter-1). Starting...")
-    # iterate through batches
-    @showprogress 0.5 "epoch $(iter-1) " for b ∈ 1:num_batches
-        @info "batch" b
-        if b != num_batches
-            XLtmp = copy(XL[(b-1)*BatchSize+1:b*BatchSize, ind_l])
-            ttmp = copy(t[(b-1)*BatchSize+1:b*BatchSize])
-        else
-            XLtmp = copy(XL[(b-1)*BatchSize+1:end, ind_l])
-            ttmp = copy(t[(b-1)*BatchSize+1:end])
-        end
-        g = whtmp |> eachcol |>
-        Map(
-            x -> Logit(
-                x, wltmp, βtmp, XLtmp, transpose(XLtmp),
-                ttmp, atol, maxiter
-            )
-        ) |> Broadcasting() |> Folds.sum
-        g ./= n_samples
-        llh[iter] += g[end] + 0.5sum(log.(βtmp)) - 0.5n_ind*log(2π)
-        βtmp .= @views (
-            1 .- βtmp .* g[n_ind+1:2n_ind]
-        ) ./ (g[1:n_ind] .+ 1e-8)
-        wltmp .= @view g[2n_ind+1:3n_ind]
-        #βsum[ind_l] .+= @views g[1:end-1] .^ 2
-    end
-    β[ind_l] .= βtmp
-    wl[ind_l] .= wltmp
-    llh[iter] /= num_batches
 end
 
 """
@@ -240,21 +200,21 @@ function RVM!(
     model::BnRVModel{T}, XL::AbstractMatrix{T},
     t::AbstractVector{T}, #XLtest::AbstractMatrix{T},
     α::AbstractVector{T}, β::AbstractVector{T};
-    rtol::Float64=1e-6, atol::Float64=1e-6,
-    maxiter::Int64=10000, n_samples::Int64=5000,
-    BatchSize::Int64=size(XL, 1)#, StepSize::Float64=0.01
+    rtol::T=convert(T, 1e-5), atol::T=convert(T, 1e-8),
+    maxiter::Int=10000, n_samples::Int=5000,
+    BatchSize::Int=size(XL, 1), ϵ::T=convert(T, 1e-8)
 ) where T<:Real
     n, d = size(XL)
     # should add more validity checks
     size(t, 1) == n || throw(DimensionMismatch("Sizes of X and t mismatch."))
     size(α, 1) == d || throw(DimensionMismatch("Sizes of X and initial α mismatch."))
-    num_batches = convert(Int64, round(n / BatchSize))
+    num_batches = convert(Int, round(n / BatchSize))
     # preallocate type-II likelihood (evidence) vector
     llh = zeros(T, maxiter)
-    llh[1] = -Inf
+    llh[1] = -Inf32
     # remove zero columns
     ind_nonzero = findall(
-        in(findall(x -> x > 1e-3, std(XL, dims=1)[:])),
+        in(findall(x -> x > 0.001f0, std(XL, dims=1)[:])),
         model.ind
     )
     ind_h = model.ind[ind_nonzero]
@@ -288,7 +248,7 @@ function RVM!(
         wltmp = copy(wl[ind_l])
         whtmp = copy(whsamples[ind_l, :])
         # iterate through batches
-        @showprogress 0.1 "epoch $(iter-1) " for b ∈ 1:num_batches
+        @showprogress 0.5 "epoch $(iter-1) " for b ∈ 1:num_batches
             if b != num_batches
                 XLtmp = copy(XL[(b-1)*BatchSize+1:b*BatchSize, ind_l])
                 ttmp = copy(t[(b-1)*BatchSize+1:b*BatchSize])
@@ -304,10 +264,10 @@ function RVM!(
                 )
             ) |> Broadcasting() |> Folds.sum
             g ./= n_samples
-            llh[iter] += g[end] + 0.5sum(log.(βtmp)) - 0.5n_ind*log(2π)
+            llh[iter] += g[end] + sum(log.(βtmp))/2 - n_ind*log(2π)/2
             βtmp .= @views (
                 1 .- βtmp .* g[n_ind+1:2n_ind]
-            ) ./ (g[1:n_ind] .+ 1e-8)
+            ) ./ (g[1:n_ind] .+ ϵ)
             wltmp .= @view g[2n_ind+1:3n_ind]
             #βsum[ind_l] .+= @views g[1:end-1] .^ 2
         end
@@ -359,21 +319,21 @@ function RVM!(
     model::BnRVModel{T}, XL::AbstractMatrix{T},
     t::AbstractVector{T}, XLtest::AbstractMatrix{T},
     α::AbstractVector{T}, β::AbstractVector{T};
-    rtol::Float64=1e-6, atol::Float64=1e-6,
-    maxiter::Int64=10000, n_samples::Int64=5000,
-    BatchSize::Int64=size(XL, 1)
+    rtol::T=convert(T, 1e-5), atol::T=convert(T, 1e-8),
+    maxiter::Int=10000, n_samples::Int=5000,
+    BatchSize::Int=size(XL, 1), ϵ::T=convert(T, 1e-8)
 ) where T<:Real
     n, d = size(XL)
     # should add more validity checks
     size(t, 1) == n || throw(DimensionMismatch("Sizes of X and t mismatch."))
     size(α, 1) == d || throw(DimensionMismatch("Sizes of X and initial α mismatch."))
-    num_batches = convert(Int64, round(n / BatchSize))
+    num_batches = convert(Int, round(n / BatchSize))
     # preallocate type-II likelihood (evidence) vector
     llh = zeros(T, maxiter)
-    llh[1] = -Inf
+    llh[1] = -Inf32
     # remove zero columns
     ind_nonzero = findall(
-        in(findall(x -> x > 1e-3, std(XL, dims=1)[:])),
+        in(findall(x -> x > 0.001f0, std(XL, dims=1)[:])),
         model.ind
     )
     ind_h = model.ind[ind_nonzero]
@@ -430,10 +390,10 @@ function RVM!(
                 )
             ) |> Broadcasting() |> Folds.sum
             g ./= n_samples
-            llh[iter] += g[end] + 0.5sum(log.(βtmp)) - 0.5n_ind*log(2π)
+            llh[iter] += g[end] + sum(log.(βtmp))/2 - n_ind*log(2π)/2
             βtmp .= @views (
                 1 .- βtmp .* g[n_ind+1:2n_ind]
-            ) ./ (g[1:n_ind] .+ 1e-8)
+            ) ./ (g[1:n_ind] .+ ϵ)
             wltmp .= @view g[2n_ind+1:3n_ind]
             #βsum[ind_l] .+= @views g[1:end-1] .^ 2
         end
@@ -449,7 +409,7 @@ function RVM!(
             end
             XLtesttmp = copy(XLtest[:, ind_h[ind_l]])
             predictions = zeros(T, size(XLtest, 1))
-            @showprogress 0.1 "making predictions..." for b ∈ 1:num_batches
+            @showprogress 0.5 "making predictions..." for b ∈ 1:num_batches
                 if b != num_batches
                     XLtmp = copy(XL[(b-1)*BatchSize+1:b*BatchSize, ind_l])
                     ttmp = copy(t[(b-1)*BatchSize+1:b*BatchSize])
@@ -472,19 +432,19 @@ function RVM!(
 end
 
 function Logit(
-    wh::AbstractVector{T}, wl::AbstractVector{T}, α::AbstractVector{T},
+    wh::AbstractVector{T}, wltmp::AbstractVector{T}, α::AbstractVector{T},
     X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
-    t::AbstractVector{T}, tol::Float64, maxiter::Int64,
-    is_final::Bool=false
+    t::AbstractVector{T}, tol::T, maxiter::Int,
+    is_final::Bool=false, ϵ::T=convert(T, 1e-8)
 ) where T<:Real
     n, d = size(X)
-    #fill!(wl, 0.)
+    wl = copy(wltmp)
     wp, g, gp = (zeros(T, d) for _ = 1:3)
     a, y = (Vector{T}(undef, n) for _ = 1:2)
     mul!(a, X, wh .+ wl)
-    llhp = -Inf
-    @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
-    η = [0.0001]
+    llhp = -Inf32
+    @avx y .= 1 ./ (1 .+ exp.(-1 .* a))
+    η = [0.0001f0]
     #@debug "g" findall(isnan, g)
     #@debug "α" α[findall(isnan, g)]
     #@debug "wl" wl[findall(isnan, g)]
@@ -502,39 +462,18 @@ function Logit(
         copyto!(wp, wl)
         wl .+= g .* η
         mul!(a, X, wl .+ wh)
-        llh = @avx -sum(log1p.(exp.((1.0 .- 2.0 .* t) .* a))) -
-            0.5sum(α .* wl .^ 2)
-        if !(llh - llhp > 0.)
-            @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
-            @debug "llh2" 0.5sum(α .* wl .^ 2)
-            @debug "llh2" 0.5sum(wl .^ 2)
-            @debug "min wl" minimum(wl)
-            @debug "wl" wl
-            @debug "wp" wp
-            @debug "η" η
-            @debug "g" g
-        end
-        while !(llh - llhp > 0.)
-            η .*= 0.8
+        llh = @avx -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
+            sum(α .* wl .^ 2) / 2
+        while !(llh - llhp > 0)
+            η ./= 2
             wl .= wp .+ g .* η
             mul!(a, X, wl .+ wh)
-            @avx llh = -sum(log1p.(exp.((1.0 .- 2.0 .* t) .* a))) -
-                0.5sum(α .* wl .^ 2)
-            #if η[1] < 1e-8 #|| llh === -Inf
-            #    @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
-            #    @debug "llh2" 0.5sum(α .* wl .^ 2)
-            #    @debug "llh2" 0.5sum(wl .^ 2)
-            #    @debug "min wl" minimum(wl)
-            #    @debug "η" η
-                #break
-            #end
-            #@debug "η" η
-            #@debug "wl" wl
-            #@debug "llh" llh
+            @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
+                sum(α .* wl .^ 2)/2
         end
-        @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
+        @avx y .= 1 ./ (1 .+ exp.(-1 .* a))
         η .= abs(sum((wl .- wp) .* (g .- gp))) ./
-            (sum((g .- gp) .^ 2) + 1e-8)
+            (sum((g .- gp) .^ 2) + ϵ)
         if llh - llhp < tol || iter == maxiter# || η[1] < 1e-8
             if iter == maxiter
                 @warn "Not converged in finding the posterior of wl."
@@ -554,19 +493,19 @@ function Logit(
 end
 
 function Logit(
-    wh::AbstractVector{T}, wl::AbstractVector{T}, α::AbstractVector{T},
+    wh::AbstractVector{T}, wltmp::AbstractVector{T}, α::AbstractVector{T},
     X::AbstractMatrix{T}, Xt::AbstractMatrix{T}, t::AbstractVector{T},
-    Xtest::AbstractMatrix{T}, tol::Float64, maxiter::Int64,
-    is_final::Bool=false
+    Xtest::AbstractMatrix{T}, tol::T, maxiter::Int,
+    is_final::Bool=false, ϵ::T=convert(T, 1e-8)
 ) where T<:Real
-    fill!(wl, 0.)
+    wl = copy(wltmp)
     n, d = size(X)
     wp, g, gp = (zeros(T, d) for _ = 1:3)
     a, y = (Vector{T}(undef, n) for _ = 1:2)
     mul!(a, X, wh .+ wl)
-    llhp=-Inf
-    @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
-    η = [0.0001]
+    llhp=-Inf32
+    @avx y .= 1 ./ (1 .+ exp.(-1 .* a))
+    η = [0.0001f0]
     @debug "g" findall(isnan, g)
     @debug "α" α[findall(isnan, g)]
     @debug "wl" wl[findall(isnan, g)]
@@ -584,35 +523,18 @@ function Logit(
         copyto!(wp, wl)
         wl .+= g .* η
         mul!(a, X, wl .+ wh)
-        @avx llh = -sum(log1p.(exp.((1.0 .- 2.0 .* t) .* a))) -
-            0.5sum(α .* wl .^ 2)
-        if llh === -Inf
-            @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
-            @debug "llh2" 0.5sum(α .* wl .^ 2)
-            @debug "llh2" 0.5sum(wl .^ 2)
-            @debug "min wl" minimum(wl)
-        end
-        while !(llh - llhp > 0.)
-            η .*= 0.8
+        @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
+            sum(α .* wl .^ 2) / 2
+        while !(llh - llhp > 0)
+            η ./= 2
             wl .= wp .+ g .* η
             mul!(a, X, wl .+ wh)
-            @avx llh = -sum(log1p.(exp.((1.0 .- 2.0 .* t) .* a))) -
-                0.5sum(α .* wl .^ 2)
-            if η[1] < 1e-8 #|| llh === -Inf
-                @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
-                @debug "llh2" 0.5sum(α .* wl .^ 2)
-                @debug "llh2" 0.5sum(wl .^ 2)
-                @debug "min wl" minimum(wl)
-                @debug "η" η
-                #break
-            end
-            #@debug "η" η
-            #@debug "wl" wl
-            #@debug "llh" llh
+            @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
+                sum(α .* wl .^ 2)/2
         end
-        @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
+        @avx y .= 1 ./ (1 .+ exp.(-1 .* a))
         η .= abs(sum((wl .- wp) .* (g .- gp))) ./
-            (sum((g .- gp) .^ 2) + 1e-8)
+            (sum((g .- gp) .^ 2) + ϵ)
         if llh - llhp < tol || iter == maxiter# || η[1] < 1e-8
             if iter == maxiter
                 @warn "Not converged in finding the posterior of wl."
@@ -633,50 +555,4 @@ function Logit(
             copyto!(gp, g)
         end
     end
-end
-
-function grad!(
-    wl::AbstractVector{T}, wh::AbstractVector{T}, wp::AbstractVector{T},
-    g::AbstractVector{T}, α::AbstractVector{T}, X::AbstractMatrix{T},
-    Xt::AbstractMatrix{T}, a::AbstractVector{T}, y::AbstractVector{T},
-    t::AbstractVector{T}, η::AbstractVector{Float64}, llhp::Float64
-) where T<:Real
-    mul!(g, Xt, t .- y)
-    g .-= α .* wl
-    #ldiv!(factorize(H), g)
-    # update w
-    @debug "g" g
-    @debug "α" α
-    @debug "wl" wl
-    @debug "wp" wp
-    copyto!(wp, wl)
-    wl .+= g .* η
-    mul!(a, X, wl .+ wh)
-    @avx llh = -sum(log1p.(exp.((1.0 .- 2.0 .* t) .* a))) -
-        0.5sum(α .* wl .^ 2)
-    if llh === -Inf
-        @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
-        @debug "llh2" 0.5sum(α .* wl .^ 2)
-        @debug "llh2" 0.5sum(wl .^ 2)
-        @debug "min wl" minimum(wl)
-    end
-    while !(llh - llhp > 0.)
-        η .*= 0.8
-        wl .= wp .+ g .* η
-        mul!(a, X, wl .+ wh)
-        @avx llh = -sum(log1p.(exp.((1.0 .- 2.0 * t) .* a))) -
-            0.5sum(α .* wl .^ 2)
-        if η[1] < 1e-8 || llh === -Inf
-            @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
-            @debug "llh2" 0.5sum(α .* wl .^ 2)
-            @debug "llh2" 0.5sum(wl .^ 2)
-            @debug "min wl" minimum(wl)
-            @debug "η" η
-        end
-        #@debug "η" η
-        #@debug "wl" wl
-        #@debug "llh" llh
-    end
-    @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
-    return llh
 end
