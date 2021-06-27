@@ -584,10 +584,9 @@ function grad!(
         mul!(a, X, wl .+ wh)
         @avx llh = -sum(log1p.(exp.((1.0 .- 2.0 * t) .* a))) -
             0.5sum(α .* wl .^ 2)
-
-        @debug "η" η
-        @debug "wl" wl
-        @debug "llh" llh
+        #@debug "η" η
+        #@debug "wl" wl
+        #@debug "llh" llh
     end
     @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
     return llh
