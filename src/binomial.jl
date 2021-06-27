@@ -65,7 +65,7 @@ function RVM!(
     llh2[1] = -Inf
     w = zeros(T, d)
     # pre-allocate memories
-    num_batches = n ÷ BatchSize
+    num_batches = convert(Int64, round(n / BatchSize))
     a1, y1 = (Vector{T}(undef, BatchSize) for _ = 1:2)
     a2, y2 = (Vector{T}(undef, n - BatchSize * (num_batches-1)) for _ = 1:2)
     ind_nonzero = findall(x -> x > 1e-3, std(X, dims=1)[:])
@@ -134,6 +134,8 @@ function RVM!(
     end
 end
 
+loss(t, X, α, w) = (@avx sum(log1p.(exp.((1 .- 2 .* t) .* (X * w)))) + 0.5sum(α .* w .^ 2))
+
 function Logit!(
     w::AbstractVector{T}, α::AbstractVector{T},
     X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
@@ -150,34 +152,39 @@ function Logit!(
     #wp = similar(w)
     @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
     r  = [0.0001]
+    θ = params(w)
     for iter = 2:maxiter
-        mul!(g, Xt, t .- y)
-        g .-= α .* w
-        @debug "g" g
-        @debug "w" w
-        @debug "w" fit(Histogram, abs.(w))
-        copyto!(wp, w)
-        w .+= g .* r
+        grads = gradient(θ) do
+            loss(t, X, α, w)
+        end
+        update!(ADAM(), w, grads[w])
+        #mul!(g, Xt, t .- y)
+        #g .-= α .* w
+        #@debug "g" g
+        #@debug "w" w
+        #@debug "w" fit(Histogram, abs.(w))
+        #copyto!(wp, w)
+        #w .+= g .* r
         mul!(a, X, w)
         @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) - 0.5sum(α .* w .^ 2)
-        @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
-        @debug "llh2" 0.5sum(α .* w .^ 2)
-        @debug "llh2" 0.5sum(w .^ 2)
-        @debug "w" findall(isnan, w)
-        @debug "min w" minimum(w)
-        while !(llh - llhp > 0.)
-            if llh === NaN
-                w[findall(isnan, w)] .= 0.
-                mul!(a, X, w)
-                @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
-                    0.5sum(α .* w .^ 2)
-                break
-            end
-            r *= 0.8
-            w .= wp .+ g .* r
-            mul!(a, X, w)
-            @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) - 0.5sum(α .* w .^ 2)
-        end
+        #@debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
+        #@debug "llh2" 0.5sum(α .* w .^ 2)
+        #@debug "llh2" 0.5sum(w .^ 2)
+        #@debug "w" findall(isnan, w)
+        #@debug "min w" minimum(w)
+        #while !(llh - llhp > 0.)
+        #    if llh === NaN
+        #        w[findall(isnan, w)] .= 0.
+        #        mul!(a, X, w)
+        #        @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
+        #            0.5sum(α .* w .^ 2)
+        #        break
+        #    end
+        #    r *= 0.8
+        #    w .= wp .+ g .* r
+        #    mul!(a, X, w)
+        #    @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) - 0.5sum(α .* w .^ 2)
+        #end
         @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
         if llh - llhp < tol || iter == maxiter
             llh += 0.5sum(log.(α)) - 0.5d*log(2π)
@@ -188,10 +195,10 @@ function Logit!(
             end
             return llh
         end
-        r .= sum((w .- wp) .* (g .- gp))
-        r .= abs.(r) ./ (sum((g .- gp) .^ 2) .+ 1e-4)
-        llhp = llh
-        copyto!(gp, g)
+        #r .= sum((w .- wp) .* (g .- gp))
+        #r .= abs.(r) ./ (sum((g .- gp) .^ 2) .+ 1e-4)
+        #llhp = llh
+        #copyto!(gp, g)
     end
 end
 
