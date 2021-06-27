@@ -578,7 +578,7 @@ function grad!(
     @debug "llh2" 0.5sum(α .* wl .^ 2)
     @debug "llh2" 0.5sum(wl .^ 2)
     @debug "min wl" minimum(wl)
-    while !(llh - llhp > 0.)
+    while !(llh - llhp >= 0.)
         η .*= 0.8
         wl .= wp .+ g .* η
         mul!(a, X, wl .+ wh)
