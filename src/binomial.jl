@@ -400,7 +400,7 @@ function RVM!(
         ind_l = findall(β .< (1/rtol)) # optional
         n_ind = size(ind_l, 1)
         if n_ind == 0
-            return predict(model, XLtest[:, ind_h[ind_l]])
+            return predict(model, XLtest[:, ind_h])
         end
         n_ind = size(ind_l, 1)
         βtmp = copy(β[ind_l])
@@ -434,11 +434,11 @@ function RVM!(
             βtmp .= @views (
                 1 .- βtmp .* g[n_ind+1:2n_ind]
             ) ./ (g[1:n_ind] .+ 1e-8)
-            #wltmp .= @view g[2n_ind+1:3n_ind]
+            wltmp .= @view g[2n_ind+1:3n_ind]
             #βsum[ind_l] .+= @views g[1:end-1] .^ 2
         end
         β[ind_l] .= βtmp
-        #wl[ind_l] .= wltmp
+        wl[ind_l] .= wltmp
         llh[iter] /= num_batches
         incr = (llh[iter] - llh[iter-1]) / llh[iter-1]
         println("epoch ", iter-1, " done. incr ", incr)
@@ -478,7 +478,7 @@ function Logit(
     is_final::Bool=false
 ) where T<:Real
     n, d = size(X)
-    fill!(wl, 0.)
+    #fill!(wl, 0.)
     wp, g, gp = (zeros(T, d) for _ = 1:3)
     a, y = (Vector{T}(undef, n) for _ = 1:2)
     mul!(a, X, wh .+ wl)
@@ -514,7 +514,7 @@ function Logit(
             η .*= 0.8
             wl .= wp .+ g .* η
             mul!(a, X, wl .+ wh)
-            @avx llh = -sum(log1p.(exp.((1.0 .- 2.0 * t) .* a))) -
+            @avx llh = -sum(log1p.(exp.((1.0 .- 2.0 .* t) .* a))) -
                 0.5sum(α .* wl .^ 2)
             if η[1] < 1e-8 #|| llh === -Inf
                 @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
@@ -592,9 +592,9 @@ function Logit(
             η .*= 0.8
             wl .= wp .+ g .* η
             mul!(a, X, wl .+ wh)
-            @avx llh = -sum(log1p.(exp.((1.0 .- 2.0 * t) .* a))) -
+            @avx llh = -sum(log1p.(exp.((1.0 .- 2.0 .* t) .* a))) -
                 0.5sum(α .* wl .^ 2)
-            if η[1] < 1e-8 || llh === -Inf
+            if η[1] < 1e-8 #|| llh === -Inf
                 @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
                 @debug "llh2" 0.5sum(α .* wl .^ 2)
                 @debug "llh2" 0.5sum(wl .^ 2)
