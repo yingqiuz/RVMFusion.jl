@@ -50,8 +50,8 @@ end
 # core algorithm
 function RVM!(
     X::AbstractMatrix{T}, t::AbstractVector{T}, α::AbstractVector{T};
-    rtol::Float64=1e-6, atol=1e-6, maxiter::Int64=10000,
-    BatchSize::Int64=size(X, 1)#, StepSize::Float64=0.0001
+    rtol::Float64=1e-6, atol::Float64=1e-6, maxiter::Int64=10000,
+    BatchSize::Int64=size(X, 1), BatchNorm::Bool=true
 ) where T<:Real
 # default full batch
     n = size(X, 1)
@@ -69,6 +69,17 @@ function RVM!(
     a1, y1 = (Vector{T}(undef, BatchSize) for _ = 1:2)
     a2, y2 = (Vector{T}(undef, n - BatchSize * (num_batches-1)) for _ = 1:2)
     ind_nonzero = findall(x -> x > 1e-3, std(X, dims=1)[:])
+    if BatchBorm
+        @showprogress 0.1 "epoch $(iter)" for b ∈ 1:num_batches
+            if b != num_batches
+                Xtmp = @view X[(b-1)*BatchSize+1:b*BatchSize, :]
+            else  # the last batch
+                Xtmp = @view X[(b-1)*BatchSize+1:end, :]
+            end
+            Xtmp .-= mean(Xtmp, dims=1)
+            Xtmp ./= std(Xtmp, dims=1)
+        end
+    end
     println("Setup done.")
     for iter ∈ 2:maxiter
         ind_h = findall(α .< (1/rtol)) # index of nonzeros
@@ -242,7 +253,7 @@ function RVM!(
     α::AbstractVector{T}, β::AbstractVector{T};
     rtol::Float64=1e-6, atol::Float64=1e-6,
     maxiter::Int64=10000, n_samples::Int64=5000,
-    BatchSize::Int64=size(XL, 1)#, StepSize::Float64=0.01
+    BatchSize::Int64=size(XL, 1), BatchNorm::Bool=true
 ) where T<:Real
     n, d = size(XL)
     # should add more validity checks
@@ -275,6 +286,17 @@ function RVM!(
     XL = XL[:, ind_h]
     β = β[ind_h]
     wl = zeros(T, size(ind_h, 1))
+    if BatchBorm
+        @showprogress 0.5 "epoch $(iter)" for b ∈ 1:num_batches
+            if b != num_batches
+                Xtmp = @view XL[(b-1)*BatchSize+1:b*BatchSize, :]
+            else  # the last batch
+                Xtmp = @view XL[(b-1)*BatchSize+1:end, :]
+            end
+            Xtmp .-= mean(Xtmp, dims=1)
+            Xtmp ./= std(Xtmp, dims=1)
+        end
+    end
     println("Setup done.")
     for iter ∈ 2:maxiter
         # remove irrelavent features

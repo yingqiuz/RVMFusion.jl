@@ -23,10 +23,10 @@ function RVM(X::Matrix{T}, t::Vector{Int64}, α_init::Float64=1.0;
     if K > 2
         α = ones(T, d, K) .* α_init
         t2 = [j == t[i] for i ∈ 1:n, j ∈ 1:K]
-        RVM!(X, convert(Matrix{T}, t2), α; kw...)
+        RVM!(copy(X), convert(Matrix{T}, t2), α; kw...)
     elseif K == 2
         α = ones(T, d) .* α_init
-        RVM!(X, convert(Vector{T}, t), α; kw...)
+        RVM!(copy(X), convert(Vector{T}, t), α; kw...)
     else
         throw(TypeError("Number of classes less than 2."))
     end
@@ -46,11 +46,11 @@ function RVM(
         α = ones(T, d, K) .* α_init
         β = ones(T, d, K) .* β_init
         t2 = [j == t[i] for i ∈ 1:n, j ∈ 1:K]
-        RVM!(XH, XL, convert(Matrix{T}, t2), α, β; kw...)
+        RVM!(copy(XH), copy(XL), convert(Matrix{T}, t2), α, β; kw...)
     elseif K == 2
         α = ones(T, d) .* α_init
         β = ones(T, d) .* β_init
-        RVM!(XH, XL, convert(Vector{T}, t), α, β; kw...)
+        RVM!(copy(XH), copy(XL), convert(Vector{T}, t), α, β; kw...)
     else
         throw(TypeError("Number of classes less than 2."))
     end
@@ -70,11 +70,11 @@ function RVM(
         α = ones(T, d, K) .* α_init
         β = ones(T, d, K) .* β_init
         t2 = [j == t[i] for i ∈ 1:n, j ∈ 1:K]
-        RVM!(XH, XL, convert(Matrix{T}, t2), XLtest, α, β; kw...)
+        RVM!(copy(XH), copy(XL), convert(Matrix{T}, t2), copy(XLtest), α, β; kw...)
     elseif K == 2
         α = ones(T, d) .* α_init
         β = ones(T, d) .* β_init
-        RVM!(XH, XL, convert(Vector{T}, t), XLtest, α, β; kw...)
+        RVM!(copy(XH), copy(XL), convert(Vector{T}, t), copy(XLtest), α, β; kw...)
     else
         throw(TypeError("Number of classes less than 2."))
     end

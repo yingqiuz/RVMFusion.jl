@@ -65,7 +65,9 @@ model for higher quality data
 """
 function RVM!(
     X::AbstractMatrix{T}, t::AbstractMatrix{T}, α::AbstractMatrix{T};
-    rtol=1e-6, atol=1e-8, maxiter=50000, BatchSize=size(X, 1)
+    rtol::T=convert(T, 1e-5), atolT=convert(T, 1e-8),
+    maxiter::Int=50000, BatchSize::Int=size(X, 1),
+    BatchNorm::Bool=true
 ) where T<:Real
     # Multinomial
     n = size(X, 1)
@@ -84,6 +86,17 @@ function RVM!(
     num_batches = convert(Int64, round(n / BatchSize))
     A1, Y1, logY1 = (Matrix{T}(undef, BatchSize, K) for _ = 1:3)
     A2, Y2, logY2 = (Matrix{T}(undef, n - BatchSize*(num_batches-1), K) for _ = 1:3)
+    if BatchBorm
+        @showprogress 0.5 "epoch $(iter)" for b ∈ 1:num_batches
+            if b != num_batches
+                Xtmp = @view X[(b-1)*BatchSize+1:b*BatchSize, ind]
+            else  # the last batch
+                Xtmp = @view X[(b-1)*BatchSize+1:end, ind]
+            end
+            Xtmp .-= mean(Xtmp, dims=1)
+            Xtmp ./= std(Xtmp, dims=1)
+        end
+    end
     println("Setup done.")
     for iter ∈ 2:maxiter
         ind = unique!([item[1] for item in findall(α .< (1/rtol))])
