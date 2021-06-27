@@ -489,7 +489,7 @@ function Logit(
         llh = grad!(wl, wh, wp, g, α, X, Xt, a, y, t, η, llhp)
         η .= abs(sum((wl .- wp) .* (g .- gp))) ./
             (sum((g .- gp) .^ 2) + 1e-8)
-        if llh - llhp < tol || iter == maxiter || η .< 1e-8
+        if llh - llhp < tol || iter == maxiter || η[1] < 1e-8
             if iter == maxiter
                 @warn "Not converged in finding the posterior of wl."
             end
@@ -529,7 +529,7 @@ function Logit(
         llh = grad!(wl, wh, wp, g, α, X, Xt, a, y, t, η, llhp)
         η .= abs(sum((wl .- wp) .* (g .- gp))) ./
             (sum((g .- gp) .^ 2) + 1e-8)
-        if llh - llhp < tol || iter == maxiter || η .< 1e-8
+        if llh - llhp < tol || iter == maxiter || η[1] < 1e-8
             if iter == maxiter
                 @warn "Not converged in finding the posterior of wl."
             end
