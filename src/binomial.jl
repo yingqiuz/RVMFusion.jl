@@ -536,9 +536,9 @@ function Logit(
 end
 
 function grad!(
-    wl::AbstractVector{T}, wh::AbstractVector{T}, g::AbstractVector{T},
-    α::AbstractVector{T}, X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
-    a::AbstractVector{T}, y::AbstractVector{T},
+    wl::AbstractVector{T}, wh::AbstractVector{T}, wp::AbstractVector{T},
+    g::AbstractVector{T}, α::AbstractVector{T}, X::AbstractMatrix{T},
+    Xt::AbstractMatrix{T}, a::AbstractVector{T}, y::AbstractVector{T},
     t::AbstractVector{T}, η::AbstractVector{Float64}, llhp::Float64
 ) where T<:Real
     mul!(g, Xt, t .- y)
