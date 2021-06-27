@@ -478,7 +478,7 @@ function Logit(
     is_final::Bool=false
 ) where T<:Real
     n, d = size(X)
-    fill(wl, 0.)
+    fill!(wl, 0.)
     wp, g, gp = (zeros(T, d) for _ = 1:3)
     a, y = (Vector{T}(undef, n) for _ = 1:2)
     mul!(a, X, wh .+ wl)
@@ -518,7 +518,7 @@ function Logit(
     Xtest::AbstractMatrix{T}, tol::Float64, maxiter::Int64,
     is_final::Bool=false
 ) where T<:Real
-    fill(wl, 0.)
+    fill!(wl, 0.)
     n, d = size(X)
     wp, g, gp = (zeros(T, d) for _ = 1:3)
     a, y = (Vector{T}(undef, n) for _ = 1:2)
@@ -593,6 +593,7 @@ function grad!(
             @debug "llh2" 0.5sum(α .* wl .^ 2)
             @debug "llh2" 0.5sum(wl .^ 2)
             @debug "min wl" minimum(wl)
+            @debug "η" η
         end
         #@debug "η" η
         #@debug "wl" wl
