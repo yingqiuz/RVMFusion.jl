@@ -558,10 +558,10 @@ function grad!(
     g .-= α .* wl
     #ldiv!(factorize(H), g)
     # update w
-    @debug "g" findall(isnan, g)
-    @debug "α" α[findall(isnan, g)]
-    @debug "wl" wl[findall(isnan, g)]
-    @debug "wp" wp[findall(isnan, g)]
+    @debug "g" g
+    @debug "α" α
+    @debug "wl" wl
+    @debug "wp" wp
     copyto!(wp, wl)
     wl .+= g .* η
     mul!(a, X, wl .+ wh)
@@ -570,7 +570,6 @@ function grad!(
     @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
     @debug "llh2" 0.5sum(α .* wl .^ 2)
     @debug "llh2" 0.5sum(wl .^ 2)
-    @debug "wl" findall(isnan, wl)
     @debug "min wl" minimum(wl)
     while !(llh - llhp > 0.)
         η .*= 0.8
@@ -580,6 +579,5 @@ function grad!(
             0.5sum(α .* wl .^ 2)
     end
     @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
-    @debug "llh" llh
     return llh
 end
