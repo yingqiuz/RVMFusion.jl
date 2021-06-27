@@ -70,7 +70,7 @@ function RVM!(
     a2, y2 = (Vector{T}(undef, n - BatchSize * (num_batches-1)) for _ = 1:2)
     ind_nonzero = findall(x -> x > 1e-3, std(X, dims=1)[:])
     if BatchNorm
-        @showprogress 0.1 "epoch $(iter)" for b ∈ 1:num_batches
+        for b ∈ 1:num_batches
             if b != num_batches
                 Xtmp = @view X[(b-1)*BatchSize+1:b*BatchSize, :]
             else  # the last batch
@@ -287,7 +287,7 @@ function RVM!(
     β = β[ind_h]
     wl = zeros(T, size(ind_h, 1))
     if BatchNorm
-        @showprogress 0.5 "epoch $(iter)" for b ∈ 1:num_batches
+        for b ∈ 1:num_batches
             if b != num_batches
                 Xtmp = @view XL[(b-1)*BatchSize+1:b*BatchSize, :]
             else  # the last batch
@@ -418,7 +418,7 @@ function RVM!(
     β = β[ind_h]
     wl = zeros(T, size(ind_h, 1))
     if BatchNorm
-        @showprogress 0.5 "epoch $(iter)" for b ∈ 1:num_batches
+        for b ∈ 1:num_batches
             if b != num_batches
                 Xtmp = @view XL[(b-1)*BatchSize+1:b*BatchSize, :]
             else  # the last batch
