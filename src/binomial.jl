@@ -425,7 +425,7 @@ function RVM!(
             g = whtmp |> eachcol |>
             Map(
                 x -> Logit(
-                    x, wltmp, βtmp, XLtmp, transpose(XLtmp),
+                    x, copy(wltmp), βtmp, XLtmp, transpose(XLtmp),
                     ttmp, atol, maxiter
                 )
             ) |> Broadcasting() |> Folds.sum
@@ -460,7 +460,7 @@ function RVM!(
                 predictions .+= (
                     whsamples[ind_l, :] |> eachcol |> Map(
                         x -> Logit(
-                            x, wltmp, βtmp, XLtmp, transpose(XLtmp),
+                            x, copy(wltmp), βtmp, XLtmp, transpose(XLtmp),
                             ttmp, XLtesttmp, atol, maxiter, true
                         )
                     ) |> Broadcasting() |> Folds.sum
