@@ -546,7 +546,6 @@ function grad!(
     #ldiv!(factorize(H), g)
     # update w
     @debug "g" findall(isnan, g)
-    @debug "gp" findall(isnan, gp)
     @debug "α" α[findall(isnan, g)]
     @debug "wl" wl[findall(isnan, g)]
     @debug "wp" wp[findall(isnan, g)]
