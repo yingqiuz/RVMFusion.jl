@@ -475,7 +475,7 @@ function Logit(
     η = [0.0001]
     for iter = 2:maxiter
         # make a step
-        llh = grad!(wl, wh, g, α, X, Xt, a, y, t, η, llhp)
+        llh = grad!(wl, wh, wp, g, α, X, Xt, a, y, t, η, llhp)
         if llh - llhp < tol || iter == maxiter
             if iter == maxiter
                 @warn "Not converged in finding the posterior of wl."
@@ -510,7 +510,7 @@ function Logit(
     η = [0.0001]
     for iter = 2:maxiter
         # make a step
-        llh = grad!(wl, wh, g, α, X, Xt, a, y, t, η, llhp)
+        llh = grad!(wl, wh, wp, g, α, X, Xt, a, y, t, η, llhp)
         if llh - llhp < tol || iter == maxiter
             if iter == maxiter
                 @warn "Not converged in finding the posterior of wl."
