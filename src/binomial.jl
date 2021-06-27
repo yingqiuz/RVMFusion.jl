@@ -313,6 +313,7 @@ function RVM!(
         wl[ind_l] .= wltmp
         llh[iter] /= num_batches
         incr = (llh[iter] - llh[iter-1]) / llh[iter-1]
+        println("epoch ", iter-1, " done. incr ", incr)
         if abs(incr) < rtol || iter == maxiter
             if iter == maxiter
                 @warn "Not converged after $(maxiter) iterations.
@@ -436,6 +437,7 @@ function RVM!(
         wl[ind_l] .= wltmp
         llh[iter] /= num_batches
         incr = (llh[iter] - llh[iter-1]) / llh[iter-1]
+        println("epoch ", iter-1, " done. incr ", incr)
         if abs(incr) < rtol || iter == maxiter
             if iter == maxiter
                 @warn "Not converged after $(maxiter) iterations.
