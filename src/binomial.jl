@@ -585,7 +585,7 @@ function grad!(
         @avx llh = -sum(log1p.(exp.((1.0 .- 2.0 * t) .* a))) -
             0.5sum(α .* wl .^ 2)
         @debug "η" η
-        @debug "w" w
+        @debug "wl" wl
     end
     @avx y .= 1.0 ./ (1.0 .+ exp.(-1.0 .* a))
     return llh
