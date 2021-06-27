@@ -65,7 +65,7 @@ function RVM!(
     llh2[1] = -Inf
     w = zeros(T, d)
     # pre-allocate memories
-    num_batches = n ÷ BatchSize
+    num_batches = convert(Int64, round(n / BatchSize))
     a1, y1 = (Vector{T}(undef, BatchSize) for _ = 1:2)
     a2, y2 = (Vector{T}(undef, n - BatchSize * (num_batches-1)) for _ = 1:2)
     ind_nonzero = findall(x -> x > 1e-3, std(X, dims=1)[:])
@@ -169,13 +169,6 @@ function Logit!(
         @debug "w" findall(isnan, w)
         @debug "min w" minimum(w)
         while !(llh - llhp > 0.)
-            #if llh === NaN
-            #    w[findall(isnan, w)] .= 0.
-            #    mul!(a, X, w)
-            #    @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
-            #        0.5sum(α .* w .^ 2)
-            #    break
-            #end
             r *= 0.8
             w .= wp .+ g .* r
             mul!(a, X, w)
@@ -197,38 +190,6 @@ function Logit!(
         r .= abs(sum((w .- wp) .* (g .- gp))) / (sum((g .- gp) .^ 2) + 1e-8)
         llhp = llh
     end
-end
-
-function RVM!(
-    XH::AbstractMatrix{T}, XL::AbstractMatrix{T},
-    t::AbstractVector{T},
-    α::AbstractVector{T}, β::AbstractVector{T};
-    rtol::Float64=1e-6, atol::Float64=1e-6,
-    maxiter::Int64=10000, n_samples::Int64=5000,
-    BatchSize::Int64=size(XL, 1)#, StepSize::Float64=0.01
-) where T<:Real
-    model = RVM!(
-        XH, t, α;
-        rtol=rtol, atol=atol,
-        maxiter=maxiter, BatchSize=BatchSize
-    )
-    RVM!(model, XL, t, α, β, rtol, atol, maxiter, n_samples, BatchSize)
-end
-
-function RVM!(
-    XH::AbstractMatrix{T}, XL::AbstractMatrix{T},
-    t::AbstractVector{T}, XLtest::AbstractMatrix{T},
-    α::AbstractVector{T}, β::AbstractVector{T};
-    rtol::Float64=1e-6, atol::Float64=1e-6,
-    maxiter::Int64=10000, n_samples::Int64=5000,
-    BatchSize::Int64=size(XL, 1)#, StepSize::Float64=0.01
-) where T<:Real
-    model = RVM!(
-        XH, t, α;
-        rtol=rtol, atol=atol,
-        maxiter=maxiter, BatchSize=BatchSize
-    )
-    RVM!(model, XL, t, XLtest, α, β, rtol, atol, maxiter, n_samples, BatchSize)
 end
 
 function epoch!(
@@ -261,7 +222,7 @@ function epoch!(
         llh[iter] += g[end] + 0.5sum(log.(βtmp)) - 0.5n_ind*log(2π)
         βtmp .= @views (
             1 .- βtmp .* g[n_ind+1:2n_ind]
-        ) ./ (g[1:n_ind] .+ rtol)
+        ) ./ (g[1:n_ind] .+ 1e-8)
         wltmp .= @view g[2n_ind+1:3n_ind]
         #βsum[ind_l] .+= @views g[1:end-1] .^ 2
     end
@@ -317,10 +278,40 @@ function RVM!(
         # remove irrelavent features
         ind_l = findall(β .< (1/rtol)) # optional
         n_ind = size(ind_l, 1)
-        if n_ind == 0
-            return model
+        #if n_ind == 0
+            #return model
+        #end
+        n_ind = size(ind_l, 1)
+        βtmp = copy(β[ind_l])
+        wltmp = copy(wl[ind_l])
+        whtmp = copy(whsamples[ind_l, :])
+        # iterate through batches
+        @showprogress 0.5 "epoch $(iter-1) " for b ∈ 1:num_batches
+            if b != num_batches
+                XLtmp = copy(XL[(b-1)*BatchSize+1:b*BatchSize, ind_l])
+                ttmp = copy(t[(b-1)*BatchSize+1:b*BatchSize])
+            else
+                XLtmp = copy(XL[(b-1)*BatchSize+1:end, ind_l])
+                ttmp = copy(t[(b-1)*BatchSize+1:end])
+            end
+            g = whtmp |> eachcol |>
+            Map(
+                x -> Logit(
+                    x, wltmp, βtmp, XLtmp, transpose(XLtmp),
+                    ttmp, atol, maxiter
+                )
+            ) |> Broadcasting() |> Folds.sum
+            g ./= n_samples
+            llh[iter] += g[end] + 0.5sum(log.(βtmp)) - 0.5n_ind*log(2π)
+            βtmp .= @views (
+                1 .- βtmp .* g[n_ind+1:2n_ind]
+            ) ./ (g[1:n_ind] .+ 1e-8)
+            wltmp .= @view g[2n_ind+1:3n_ind]
+            #βsum[ind_l] .+= @views g[1:end-1] .^ 2
         end
-        epoch!(β, whsamples, wl, XL, t, llh, ind_l, num_batches)
+        β[ind_l] .= βtmp
+        wl[ind_l] .= wltmp
+        llh[iter] /= num_batches
         incr = (llh[iter] - llh[iter-1]) / llh[iter-1]
         if abs(incr) < rtol || iter == maxiter
             if iter == maxiter
@@ -408,14 +399,44 @@ function RVM!(
         if n_ind == 0
             return predict(model, XLtest[:, ind_h[ind_l]])
         end
-        epoch!(β, whsamples, wl, XL, t, llh, ind_l, num_batches)
+        n_ind = size(ind_l, 1)
+        βtmp = copy(β[ind_l])
+        wltmp = copy(wl[ind_l])
+        whtmp = copy(whsamples[ind_l, :])
+        # iterate through batches
+        @showprogress 0.5 "epoch $(iter-1) " for b ∈ 1:num_batches
+            if b != num_batches
+                XLtmp = copy(XL[(b-1)*BatchSize+1:b*BatchSize, ind_l])
+                ttmp = copy(t[(b-1)*BatchSize+1:b*BatchSize])
+            else
+                XLtmp = copy(XL[(b-1)*BatchSize+1:end, ind_l])
+                ttmp = copy(t[(b-1)*BatchSize+1:end])
+            end
+            g = whtmp |> eachcol |>
+            Map(
+                x -> Logit(
+                    x, wltmp, βtmp, XLtmp, transpose(XLtmp),
+                    ttmp, atol, maxiter
+                )
+            ) |> Broadcasting() |> Folds.sum
+            g ./= n_samples
+            llh[iter] += g[end] + 0.5sum(log.(βtmp)) - 0.5n_ind*log(2π)
+            βtmp .= @views (
+                1 .- βtmp .* g[n_ind+1:2n_ind]
+            ) ./ (g[1:n_ind] .+ 1e-8)
+            wltmp .= @view g[2n_ind+1:3n_ind]
+            #βsum[ind_l] .+= @views g[1:end-1] .^ 2
+        end
+        β[ind_l] .= βtmp
+        wl[ind_l] .= wltmp
+        llh[iter] /= num_batches
         incr = (llh[iter] - llh[iter-1]) / llh[iter-1]
         if abs(incr) < rtol || iter == maxiter
             if iter == maxiter
                 @warn "Not converged after $(maxiter) iterations.
                     Results might be inaccurate."
             end
-            XLtesttmp = copy(XLtest[:, XLtest[ind_h[ind_l]]])
+            XLtesttmp = copy(XLtest[:, ind_h[ind_l]])
             predictions = zeros(T, size(XLtest, 1))
             @showprogress 0.5 "making predictions..." for b ∈ 1:num_batches
                 if b != num_batches
@@ -426,7 +447,7 @@ function RVM!(
                     ttmp = copy(t[(b-1)*BatchSize+1:end])
                 end
                 predictions .+= (
-                    whtmp |> eachcol |> Map(
+                    whsamples[ind_l, :] |> eachcol |> Map(
                         x -> Logit(
                             x, wltmp, βtmp, XLtmp, transpose(XLtmp),
                             ttmp, XLtesttmp, atol, maxiter, true
@@ -506,7 +527,8 @@ function Logit(
             end
         else
             llhp = llh
-            η .= abs(sum((wl .- wp) .* (g .- gp))) ./ (sum((g .- gp) .^ 2) + 1e-4)
+            η .= abs(sum((wl .- wp) .* (g .- gp))) ./
+                (sum((g .- gp) .^ 2) + 1e-8)
             # update gradient
             copyto!(gp, g)
         end
@@ -529,13 +551,6 @@ function grad!(
     @avx llh = -sum(log1p.(exp.((1.0 .- 2.0 .* t) .* a))) -
         0.5sum(α .* wl .^ 2)
     while !(llh - llhp > 0.)
-        if llh === NaN
-            w[findall(isnan, w)] .= 0.
-            mul!(a, X, w)
-            @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
-                0.5sum(α .* w .^ 2)
-            break
-        end
         η .*= 0.8
         wl .= wp .+ g .* η
         mul!(a, X, wl .+ wh)

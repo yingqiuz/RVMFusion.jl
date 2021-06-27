@@ -80,6 +80,39 @@ function RVM(
     end
 end
 
+#binomial
+function RVM!(
+    XH::AbstractMatrix{T}, XL::AbstractMatrix{T},
+    t::AbstractVector{T},
+    α::AbstractVector{T}, β::AbstractVector{T};
+    rtol::Float64=1e-6, atol::Float64=1e-6,
+    maxiter::Int64=10000, n_samples::Int64=5000,
+    BatchSize::Int64=size(XL, 1)#, StepSize::Float64=0.01
+) where T<:Real
+    model = RVM!(
+        XH, t, α;
+        rtol=rtol, atol=atol,
+        maxiter=maxiter, BatchSize=BatchSize
+    )
+    RVM!(model, XL, t, α, β, rtol, atol, maxiter, n_samples, BatchSize)
+end
+
+function RVM!(
+    XH::AbstractMatrix{T}, XL::AbstractMatrix{T},
+    t::AbstractVector{T}, XLtest::AbstractMatrix{T},
+    α::AbstractVector{T}, β::AbstractVector{T};
+    rtol::Float64=1e-6, atol::Float64=1e-6,
+    maxiter::Int64=10000, n_samples::Int64=5000,
+    BatchSize::Int64=size(XL, 1)#, StepSize::Float64=0.01
+) where T<:Real
+    model = RVM!(
+        XH, t, α;
+        rtol=rtol, atol=atol,
+        maxiter=maxiter, BatchSize=BatchSize
+    )
+    RVM!(model, XL, t, XLtest, α, β, rtol, atol, maxiter, n_samples, BatchSize)
+end
+
 # multinomial
 """train only"""
 function RVM!(
