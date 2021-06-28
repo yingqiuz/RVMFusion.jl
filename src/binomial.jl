@@ -555,12 +555,12 @@ function Logit(
                 @warn "Not converged in finding the posterior of wl."
             end
             if is_final
-                #H = WoodburyInv!(
-                #    α,
-                #    Diagonal(sqrt.(y .* (1 .- y))) * X
-                #)
-                #return predict(Xtest, wl .+ wh, H, Xt)
-                return predict(Xtest, wl.+wh)
+                H = WoodburyInv!(
+                    α,
+                    Diagonal(sqrt.(y .* (1 .- y))) * X
+                )
+                return predict(Xtest, wl .+ wh, H, Xt)
+                #return predict(Xtest, wl.+wh)
             else
                 #WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
                 return vcat(wl.^2, wl, llh)
