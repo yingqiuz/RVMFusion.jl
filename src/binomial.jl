@@ -42,6 +42,12 @@ function predict(
     return logistic.(p)
 end
 
+function predict(
+    X::AbstractMatrix{T}, w::AbstractVector{T}
+) where T <: Real
+    return logistic.(X * w)
+end
+
 # core algorithm
 function RVM!(
     X::AbstractMatrix{T}, t::AbstractVector{T}, α::AbstractVector{T};
@@ -556,7 +562,8 @@ function Logit(
                     α,
                     Diagonal(sqrt.(y .* (1 .- y))) * X
                 )
-                return predict(Xtest, wl .+ wh, H, Xt)
+                #return predict(Xtest, wl .+ wh, H, Xt)
+                return predict(Xtest, wl.+wh)
             else
                 WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
                 return vcat(wl.^2, g, wl, llh)
