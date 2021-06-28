@@ -34,16 +34,11 @@ function predict(
 end
 
 function predict(
-    X::AbstractMatrix{T}, w::AbstractVector{T}, H::AbstractMatrix{T}
+    X::AbstractMatrix{T}, w::AbstractVector{T}, H::AbstractMatrix{T},
+    Xt::AbstractMatrix{T}=transpose(X)
 ) where T <: Real
-    n, d = size(X)
-    p = Vector{T}(undef, n)
-    fill!(p, 1)
-    @turbo for nn ∈ 1:n, i ∈ 1:d, j ∈ 1:d
-        p[nn] += X[nn, i] * H[i, j] * X[nn, j] * π / 8
-    end
-    p .= p.^(-0.5f0)
-    p .*= X * w
+    p = (1 .+ diag(X * H * transpose(X)) .* π ./ 8).^(-0.5f0) .*
+        (X * w)
     return logistic.(p)
 end
 
@@ -561,7 +556,7 @@ function Logit(
                     α,
                     Diagonal(sqrt.(y .* (1 .- y))) * X
                 )
-                return predict(Xtest, wl .+ wh, H)
+                return predict(Xtest, wl .+ wh, H, Xt)
             else
                 WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
                 return vcat(wl.^2, g, wl, llh)
