@@ -180,7 +180,7 @@ function Logit!(
         #@debug "w" findall(isnan, w)
         #@debug "min w" minimum(w)
         while !(llh - llhp > 0.)
-            r *= 0.8
+            r .*= 0.8
             w .= wp .+ g .* r
             mul!(a, X, w)
             @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) - 0.5sum(α .* w .^ 2)
