@@ -72,9 +72,9 @@ function RVM!(
     if BatchNorm
         for b ∈ 1:num_batches
             if b != num_batches
-                Xtmp = @view X[(b-1)*BatchSize+1:b*BatchSize, :]
+                Xtmp = @view X[(b-1)*BatchSize+1:b*BatchSize, ind_nonzero]
             else  # the last batch
-                Xtmp = @view X[(b-1)*BatchSize+1:end, :]
+                Xtmp = @view X[(b-1)*BatchSize+1:end, ind_nonzero]
             end
             Xtmp .-= mean(Xtmp, dims=1)
             Xtmp ./= std(Xtmp, dims=1)
