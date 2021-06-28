@@ -16,9 +16,9 @@ function predict(
     model::BnRVModel{T}, X::AbstractMatrix{T}
 ) where T <: Real
     Xview = @view X[:, model.ind]
-    p = (1 .+ diag(Xview * model.H * transpose(Xview)) .* π ./ 8).^(-0.5f0) .* (Xview * model.w)
-    p .= @avx 1 ./ (1 .+ exp.(-1 .* p))
-    return p
+    p = (1 .+ diag(Xview * model.H * transpose(Xview)) .* π ./ 8).^(-0.5f0) .*
+        (Xview * model.w)
+    return logistic.(p)
 end
 
 function predict(
@@ -44,7 +44,7 @@ function predict(
     end
     p .= p.^(-0.5f0)
     p .*= X * w
-    return @avx 1 ./ (1 .+ exp.(-1 .* p))
+    return logistic.(p)
 end
 
 # core algorithm
@@ -112,7 +112,7 @@ function RVM!(
                 if b != num_batches
                     Xtmp = @view X[(b-1)*BatchSize+1:b*BatchSize, ind]
                     mul!(a1, Xtmp, wtmp)
-                    @avx y1 .= 1 ./ (1 .+ exp.(-1 .* a1))
+                    y1 .= logistic.(a1)
                     H .+= WoodburyInv!(
                         αtmp,
                         Diagonal(sqrt.(y1 .* (1 .- y1))) * Xtmp
@@ -120,7 +120,7 @@ function RVM!(
                 else
                     Xtmp = @view X[(b-1)*BatchSize+1:end, ind]
                     mul!(a2, Xtmp, wtmp)
-                    @avx y2 .= 1 ./ (1 .+ exp.(-1 .* a2))
+                    y2 .= logistic.(a2)
                     H .+= WoodburyInv!(
                         αtmp,
                         Diagonal(sqrt.(y2 .* (1 .- y2))) * Xtmp
@@ -149,34 +149,49 @@ function Logit!(
     mul!(a, X, w)
     llhp = -Inf32
     #wp = similar(w)
-    @avx y .= 1 ./ (1 .+ exp.(-1 .* a))
-    r  = [0.0001f0]
+    y .= logistic.(a)
+    #y = round.(y, digits=4)
+    r = [0.0001f0]
     for iter = 2:maxiter
         copyto!(gp, g)
+        @debug "g" g
+        @debug "α" α
+        @debug "w" w
+        #@debug "t" t
+        @debug "Xt" Xt
+        #y .= t .- y
+        #y[abs.(y) .< 1e-6] .= 0
         mul!(g, Xt, t .- y)
+        @debug "Xt * (t .- y)" Xt * (t .- y)
+        @debug "y" y
+        #@info "t" t
+        @debug "g" g
+        @debug "α" α
+        @debug "w" w
         g .-= α .* w
-        #@debug "g" findall(isnan, g)
-        #@debug "gp" findall(isnan, gp)
-        #@debug "α" α[findall(isnan, g)]
-        #@debug "w" w[findall(isnan, g)]
-        #@debug "wp" wp[findall(isnan, g)]
+        @debug "wp" wp[findall(isnan, g)]
         copyto!(wp, w)
         w .+= g .* r
         mul!(a, X, w)
-        @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) - sum(α .* w .^ 2)/2
-        #@debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
-        #@debug "llh2" 0.5sum(α .* w .^ 2)
-        #@debug "llh2" 0.5sum(w .^ 2)
-        #@debug "w" findall(isnan, w)
-        #@debug "min w" minimum(w)
-        while !(llh - llhp > 0)
+
+        llh = -sum(log1pexp.((1 .- 2 .* t) .* a)) - sum(α .* w .^ 2)/2
+        @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
+        @debug "llh2" sum(α .* w .^ 2) / 2
+        @debug "llh2" sum(w .^ 2) / 2
+        @debug "w" findall(isnan, w)
+        @debug "min w" minimum(w)
+        while !(llh - llhp > 0) & !(abs(llh - llhp) < tol)
             r ./= 2
             w .= wp .+ g .* r
             mul!(a, X, w)
-            @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) - sum(α .* w .^ 2)/2
+            llh = -sum(log1pexp.((1 .- 2 .* t) .* a)) - sum(α .* w .^ 2)/2
         end
-        @avx y .= 1 ./ (1 .+ exp.(-1 .* a))
-        if llh - llhp < tol || iter == maxiter
+
+        y .= logistic.(a)
+        #y = round.(y, digits=4)
+        @debug "y" findall(isnan, y) y[findall(isnan, y)]
+        @debug "a" findall(isnan, a) a[findall(isnan, y)]
+        if abs(llh - llhp) < tol || iter == maxiter
             llh += sum(log.(α))/2 - d*log(2π)/2
             WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
             α .= (1 .- α .* g) ./ (w .^ 2 .+ ϵ)
@@ -189,6 +204,7 @@ function Logit!(
         #@debug "r2" (sum((g .- gp) .^ 2) + 1e-4)
         #@debug "g - gp, w - wp" g .- gp w .- wp
         r .= abs(sum((w .- wp) .* (g .- gp))) / (sum((g .- gp) .^ 2) + ϵ)
+        @debug "r" r
         llhp = llh
     end
 end
@@ -301,7 +317,8 @@ function RVM!(
                         βtmp,
                         Diagonal(
                             sqrt.(
-                                @avx 1 ./ (1 .+ exp.(XLtmp * view(wl, :, col)))
+                                #@avx 1 ./ (1 .+ exp.(XLtmp * view(wl, :, col)))
+                                logistic.(XLtmp * view(wl, :, col))
                             )
                         ) * XLtmp
                     ) ./ num_batches
@@ -443,7 +460,7 @@ function Logit(
     a, y = (Vector{T}(undef, n) for _ = 1:2)
     mul!(a, X, wh .+ wl)
     llhp = -Inf32
-    @avx y .= 1 ./ (1 .+ exp.(-1 .* a))
+    y .= logistic.(a)
     η = [0.0001f0]
     #@debug "g" findall(isnan, g)
     #@debug "α" α[findall(isnan, g)]
@@ -462,19 +479,19 @@ function Logit(
         copyto!(wp, wl)
         wl .+= g .* η
         mul!(a, X, wl .+ wh)
-        llh = @avx -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
+        llh = -sum(log1pexp.((1 .- 2 .* t) .* a)) -
             sum(α .* wl .^ 2) / 2
-        while !(llh - llhp > 0)
+        while !(llh - llhp > 0) & !(abs(llh - llhp) < tol)
             η ./= 2
             wl .= wp .+ g .* η
             mul!(a, X, wl .+ wh)
-            @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
+            llh = -sum(log1pexp.((1 .- 2 .* t) .* a)) -
                 sum(α .* wl .^ 2)/2
         end
-        @avx y .= 1 ./ (1 .+ exp.(-1 .* a))
+        y .= logistic.(a)
         η .= abs(sum((wl .- wp) .* (g .- gp))) ./
             (sum((g .- gp) .^ 2) + ϵ)
-        if llh - llhp < tol || iter == maxiter# || η[1] < 1e-8
+        if abs(llh - llhp) < tol || iter == maxiter# || η[1] < 1e-8
             if iter == maxiter
                 @warn "Not converged in finding the posterior of wl."
             end
@@ -504,7 +521,7 @@ function Logit(
     a, y = (Vector{T}(undef, n) for _ = 1:2)
     mul!(a, X, wh .+ wl)
     llhp=-Inf32
-    @avx y .= 1 ./ (1 .+ exp.(-1 .* a))
+    y .= logistic.(a)
     η = [0.0001f0]
     @debug "g" findall(isnan, g)
     @debug "α" α[findall(isnan, g)]
@@ -523,19 +540,19 @@ function Logit(
         copyto!(wp, wl)
         wl .+= g .* η
         mul!(a, X, wl .+ wh)
-        @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
+        llh = -sum(log1pexp.((1 .- 2 .* t) .* a)) -
             sum(α .* wl .^ 2) / 2
-        while !(llh - llhp > 0)
+        while !(llh - llhp > 0) & !(abs(llh - llhp) < tol)
             η ./= 2
             wl .= wp .+ g .* η
             mul!(a, X, wl .+ wh)
-            @avx llh = -sum(log1p.(exp.((1 .- 2 .* t) .* a))) -
+            llh = -sum(log1pexp.((1 .- 2 .* t) .* a)) -
                 sum(α .* wl .^ 2)/2
         end
-        @avx y .= 1 ./ (1 .+ exp.(-1 .* a))
+        y .= logistic.(a)
         η .= abs(sum((wl .- wp) .* (g .- gp))) ./
             (sum((g .- gp) .^ 2) + ϵ)
-        if llh - llhp < tol || iter == maxiter# || η[1] < 1e-8
+        if abs(llh - llhp) < tol || iter == maxiter# || η[1] < 1e-8
             if iter == maxiter
                 @warn "Not converged in finding the posterior of wl."
             end

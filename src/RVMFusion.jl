@@ -1,6 +1,6 @@
 #  RVM for lower quality data
 module RVMFusion
-using Statistics, LinearAlgebra, StatsBase, Distributions
+using Statistics, LinearAlgebra, StatsBase, Distributions, StatsFuns
 using Transducers, Folds, ProgressMeter, LoopVectorization
 
 export RVM, RVM!
