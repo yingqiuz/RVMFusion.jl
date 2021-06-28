@@ -87,7 +87,7 @@ function RVM!(
     α::AbstractVector{T}, β::AbstractVector{T};
     rtol::Float64=1e-6, atol::Float64=1e-6,
     maxiter::Int64=10000, n_samples::Int64=5000,
-    BatchSize::Int64=size(XL, 1), BatchNorm=true#, StepSize::Float64=0.01
+    BatchSize::Int64=size(XL, 1), BatchNorm=false#, StepSize::Float64=0.01
 ) where T<:Real
     model = RVM!(
         XH, t, α;
@@ -109,7 +109,7 @@ function RVM!(
     α::AbstractVector{T}, β::AbstractVector{T};
     rtol::Float64=1e-6, atol::Float64=1e-6,
     maxiter::Int64=10000, n_samples::Int64=5000,
-    BatchSize::Int64=size(XL, 1), BatchNorm=true#, StepSize::Float64=0.01
+    BatchSize::Int64=size(XL, 1), BatchNorm=false#, StepSize::Float64=0.01
 ) where T<:Real
     model = RVM!(
         XH, t, α;

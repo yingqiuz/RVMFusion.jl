@@ -51,7 +51,7 @@ end
 function RVM!(
     X::AbstractMatrix{T}, t::AbstractVector{T}, α::AbstractVector{T};
     rtol::Float64=1e-6, atol::Float64=1e-6, maxiter::Int64=10000,
-    BatchSize::Int64=size(X, 1), BatchNorm::Bool=true
+    BatchSize::Int64=size(X, 1), BatchNorm::Bool=false
 ) where T<:Real
 # default full batch
     n = size(X, 1)
@@ -253,7 +253,7 @@ function RVM!(
     α::AbstractVector{T}, β::AbstractVector{T};
     rtol::Float64=1e-6, atol::Float64=1e-6,
     maxiter::Int64=10000, n_samples::Int64=5000,
-    BatchSize::Int64=size(XL, 1), BatchNorm::Bool=true
+    BatchSize::Int64=size(XL, 1), BatchNorm::Bool=false
 ) where T<:Real
     n, d = size(XL)
     # should add more validity checks
@@ -383,7 +383,7 @@ function RVM!(
     α::AbstractVector{T}, β::AbstractVector{T};
     rtol::Float64=1e-6, atol::Float64=1e-6,
     maxiter::Int64=10000, n_samples::Int64=5000,
-    BatchSize::Int64=size(XL, 1), BatchNorm::Bool=true
+    BatchSize::Int64=size(XL, 1), BatchNorm::Bool=false
 ) where T<:Real
     n, d = size(XL)
     # should add more validity checks
