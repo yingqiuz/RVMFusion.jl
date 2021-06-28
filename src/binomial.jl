@@ -248,7 +248,7 @@ function RVM!(
         ),
         n_samples
     )
-    whsamples = copy(reshape(wh, size(ind_nonzero, 1), 1))
+    #whsamples = copy(reshape(wh, size(ind_nonzero, 1), 1))
     # remove irrelevant columns
     XL = XL[:, ind_h]
     β = β[ind_h]
