@@ -195,7 +195,7 @@ function Logit!(
         if abs(llh - llhp) < tol || iter == maxiter
             llh += sum(log.(α))/2 - d*log(2π)/2
             WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
-            α .= (1 .- α .* g) ./ (w .^ 2 .+ ϵ)
+            α .= 1 ./ (w .^ 2 .+ ϵ)
             if iter == maxiter
                 @warn "Not converged in finding the posterior of wh."
             end
@@ -282,10 +282,8 @@ function RVM!(
             ) |> Broadcasting() |> Folds.sum
             g ./= n_samples
             llh[iter] += g[end] + sum(log.(βtmp))/2 - n_ind*log(2π)/2
-            βtmp .= @views (
-                1 .- βtmp .* g[n_ind+1:2n_ind]
-            ) ./ (g[1:n_ind] .+ ϵ)
-            wltmp .= @view g[2n_ind+1:3n_ind]
+            βtmp .= 1 ./ @views (g[1:n_ind] .+ ϵ)
+            wltmp .= @view g[n_ind+1:2n_ind]
             #βsum[ind_l] .+= @views g[1:end-1] .^ 2
         end
         β[ind_l] .= βtmp
@@ -409,10 +407,8 @@ function RVM!(
             ) |> Broadcasting() |> Folds.sum
             g ./= n_samples
             llh[iter] += g[end] + sum(log.(βtmp))/2 - n_ind*log(2π)/2
-            βtmp .= @views (
-                1 .- βtmp .* g[n_ind+1:2n_ind]
-            ) ./ (g[1:n_ind] .+ ϵ)
-            wltmp .= @view g[2n_ind+1:3n_ind]
+            βtmp .= 1 ./ @views (g[1:n_ind] .+ ϵ)
+            wltmp .= @view g[n_ind+1:2n_ind]
             #βsum[ind_l] .+= @views g[1:end-1] .^ 2
         end
         β[ind_l] .= βtmp
@@ -499,8 +495,8 @@ function Logit(
             if is_final
                 return wl .+ wh
             else
-                WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
-                return vcat(wl.^2, g, wl, llh)
+                #WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
+                return vcat(wl.^2, wl, llh)
             end
         else
             llhp = llh
@@ -565,8 +561,8 @@ function Logit(
                 #return predict(Xtest, wl .+ wh, H, Xt)
                 return predict(Xtest, wl.+wh)
             else
-                WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
-                return vcat(wl.^2, g, wl, llh)
+                #WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
+                return vcat(wl.^2, wl, llh)
             end
         else
             llhp = llh
