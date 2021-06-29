@@ -9,7 +9,7 @@ function WoodburyInv!(
         rmul!(X, Diagonal(sqrt.(1 ./ g)))
         return Diagonal(1 ./ g) - X' * LinearAlgebra.inv!(C) * X
     else
-        return LinearAlgebra.inv!(cholesky!(Hermitian(Diagonal(g) + X' * X)))
+        return LinearAlgebra.inv!(cholesky!(Symmetric(Diagonal(g) + X' * X)))
     end
 end
 
@@ -26,7 +26,7 @@ function WoodburyInv!(
         #rmul!(X, Diagonal(sqrt.(1 ./ g)))
         #return Diagonal(1 ./ g) - X' * inv!(C) * X
     else
-        d .= diag(LinearAlgebra.inv!(cholesky!(Hermitian(Diagonal(g) + X' * X))))  # \ I(ncol)
+        d .= diag(LinearAlgebra.inv!(cholesky!(Symmetric(Diagonal(g) + X' * X))))  # \ I(ncol)
     end
     d
 end
@@ -44,16 +44,16 @@ end
 
 sigmoid(x) = 1 / (1 + exp(-x))
 
-softmax(x::AbstractArray) = (LoopVectorization.@avx exp.(x) ./ sum(exp.(x), dims=2))
+softmax(x::AbstractArray) = (@avx exp.(x) ./ sum(exp.(x), dims=2))
 
-function f1(y1, y2)
+function f1(y1::AbstractArray{T}, y2::AbstractArray{T}) where T<:Real
     K = unique(y2)
-    f = zeros(Float64, size(K, 1))
+    f = zeros(T, size(K, 1))
     for k in K
         TP = count(y1 .== y2 .== k)
         precision = TP / (TP + count( (y1 .== k) .& (y2 .!= k)))
         recall = TP / (TP + count((y1 .!= k) .& (y2 .== k)))
-        f[k] = 2* precision * recall /(precision + recall)
+        f[k] = 2 * precision * recall /(precision + recall)
     end
     f
 end
