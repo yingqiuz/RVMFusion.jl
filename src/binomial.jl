@@ -97,6 +97,7 @@ function RVM!(
                 )
             end
         end
+        # update α
         α[ind] .= αtmp
         w[ind] .= wtmp
         # finish all mini batches
@@ -194,7 +195,7 @@ function Logit!(
         @debug "a" findall(isnan, a) a[findall(isnan, y)]
         if abs(llh - llhp) < tol || iter == maxiter
             llh += sum(log.(α))/2 - d*log(2π)/2
-            WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
+            #WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
             α .= 1 ./ (w .^ 2 .+ ϵ)
             if iter == maxiter
                 @warn "Not converged in finding the posterior of wh."
