@@ -1,6 +1,6 @@
 function WoodburyInv!(
-    g::AbstractArray{T},
-    X::AbstractArray{T},
+    g::AbstractVector{T},
+    X::AbstractMatrix{T},
 ) where T <: Real
     nrow, ncol = size(X)
     if nrow < ncol
@@ -14,9 +14,9 @@ function WoodburyInv!(
 end
 
 function WoodburyInv!(
-    d::AbstractArray{T},
-    g::AbstractArray{T},
-    X::AbstractArray{T}
+    d::AbstractVector{T},
+    g::AbstractVector{T},
+    X::AbstractMatrix{T}
 ) where T <: Real
     nrow, ncol = size(X)
     if nrow < ncol
