@@ -37,8 +37,8 @@ function RVM(
     α_init::T=convert(T, 1.0), β_init::T=convert(T, 1.0);
     kw...
 ) where T<:Real
-    n = size(XH, 1)
-    d = size(XH, 2)
+    n = size(XL, 1)
+    d = size(XL, 2)
     size(t, 1) == n || throw(DimensionMismatch("Sizes of X and t mismatch."))
 
     K = size(unique(t), 1)
@@ -61,8 +61,8 @@ function RVM(
     XLtest::Matrix{T}, α_init::T=convert(T, 1.0),
     β_init::T=convert(T, 1.0); kw...
 ) where T<:Real
-    n = size(XH, 1)
-    d = size(XH, 2)
+    n = size(XL, 1)
+    d = size(XL, 2)
     size(t, 1) == n || throw(DimensionMismatch("Sizes of X and t mismatch."))
 
     K = size(unique(t), 1)
