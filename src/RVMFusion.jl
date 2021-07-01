@@ -33,7 +33,7 @@ function RVM(X::Matrix{T}, t::Vector{Int}, α_init::T=convert(T, 1.0);
 end
 
 function RVM(
-    XH::Matrix{T}, XL::Matrix{T}, t::Vector{Int},
+    XH::Union{Matrix{T}, BnRVModel{T}}, XL::Matrix{T}, t::Vector{Int},
     α_init::T=convert(T, 1.0), β_init::T=convert(T, 1.0);
     kw...
 ) where T<:Real
