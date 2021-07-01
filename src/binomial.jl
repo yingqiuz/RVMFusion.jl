@@ -236,13 +236,10 @@ function RVM!(
     )
     ind_h = model.ind[ind_nonzero]
     # prune wh and H
-    wh = model.w[ind_nonzero]
-    H = model.H[ind_nonzero, ind_nonzero]
-    #@show ind_h ind
-    #@show ind_nonzero
     if n_samples == 1
         whsamples = wh[:, :]
         β = diag(LinearAlgebra.inv!(cholesky(model.H)))
+        β = β[ind_nonzero]
     else
         println("Generate posterior samples of wh...")
         whsamples = rand(
@@ -252,7 +249,9 @@ function RVM!(
             ),
             n_samples
         )
+        β = β[ind_h]
     end
+    @info "whsamples" whsamples
     # remove irrelevant columns
     XL = XL[:, ind_h]
     β = β[ind_h]
@@ -368,6 +367,7 @@ function RVM!(
     if n_samples == 1
         whsamples = wh[:, :]
         β = diag(LinearAlgebra.inv!(cholesky(model.H)))
+        β = β[ind_nonzero]
     else
         println("Generate posterior samples of wh...")
         whsamples = rand(
@@ -377,11 +377,11 @@ function RVM!(
             ),
             n_samples
         )
+        β = β[ind_h]
     end
     @info "whsamples" whsamples
     # remove irrelevant columns
     XL = XL[:, ind_h]
-    β = β[ind_h]
     wl = zeros(T, size(ind_h, 1))
     println("Setup done.")
     for iter ∈ 2:maxiter
