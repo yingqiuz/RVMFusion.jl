@@ -240,14 +240,18 @@ function RVM!(
     H = model.H[ind_nonzero, ind_nonzero]
     #@show ind_h ind
     #@show ind_nonzero
-    println("Generate posterior samples of wh...")
-    whsamples = rand(
-        MvNormal(
-            wh,
-            Symmetric(H)
-        ),
-        n_samples
-    )
+    if n_samples == 1
+        whsamples = wh[:, :]
+    else
+        println("Generate posterior samples of wh...")
+        whsamples = rand(
+            MvNormal(
+                wh,
+                Symmetric(H)
+            ),
+            n_samples
+        )
+    end
     # remove irrelevant columns
     XL = XL[:, ind_h]
     β = β[ind_h]
@@ -360,14 +364,18 @@ function RVM!(
     H = model.H[ind_nonzero, ind_nonzero]
     #@show ind_h ind
     #@show ind_nonzero
-    println("Generate posterior samples of wh...")
-    whsamples = rand(
-        MvNormal(
-            wh,
-            Symmetric(H)
-        ),
-        n_samples
-    )
+    if n_samples == 1
+        whsamples = wh[:, :]
+    else
+        println("Generate posterior samples of wh...")
+        whsamples = rand(
+            MvNormal(
+                wh,
+                Symmetric(H)
+            ),
+            n_samples
+        )
+    end
     @info "whsamples" whsamples
     # remove irrelevant columns
     XL = XL[:, ind_h]
