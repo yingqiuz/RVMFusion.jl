@@ -85,19 +85,15 @@ function RVM!(
     XH::AbstractMatrix{T}, XL::AbstractMatrix{T},
     t::AbstractVector{T},
     α::AbstractVector{T}, β::AbstractVector{T};
-    rtol::T=convert(T, 1e-5), atol::T=convert(T, 1e-8),
-    maxiter::Int=10000, n_samples::Int=5000,
-    BatchSize::Int=size(XL, 1)#, StepSize::T=0.01
+    kw...
 ) where T<:Real
     model = RVM!(
         XH, t, α;
-        rtol=rtol, atol=atol,
-        maxiter=maxiter, BatchSize=BatchSize
+        kw...
     )
     RVM!(
         model, XL, t, α, β;
-        rtol=rtol, atol=atol, maxiter=maxiter,
-        n_samples=n_samples, BatchSize=BatchSize
+        kw...
     )
 end
 
@@ -105,20 +101,10 @@ function RVM!(
     XH::AbstractMatrix{T}, XL::AbstractMatrix{T},
     t::AbstractVector{T}, XLtest::AbstractMatrix{T},
     α::AbstractVector{T}, β::AbstractVector{T};
-    rtol::T=convert(T, 1e-5), atol::T=convert(T, 1e-8),
-    maxiter::Int=10000, n_samples::Int=5000,
-    BatchSize::Int=size(XL, 1)#, StepSize::T=0.01
+    kw...
 ) where T<:Real
-    model = RVM!(
-        XH, t, α;
-        rtol=rtol, atol=atol,
-        maxiter=maxiter, BatchSize=BatchSize
-    )
-    RVM!(
-        model, XL, t, XLtest, α, β;
-        rtol=rtol, atol=atol, maxiter=maxiter,
-        n_samples=n_samples, BatchSize=BatchSize
-    )
+    model = RVM!(XH, t, α)
+    RVM!(model, XL, t, XLtest, α, β; kw...)
 end
 
 # multinomial
@@ -129,8 +115,7 @@ function RVM!(
 ) where T<:Real
     model = RVM!(
         XH, t, α;
-        rtol=rtol, atol=atol,
-        maxiter=maxiter, BatchSize=BatchSize
+        kw...
     )
     RVM!(model, XL, t, α, β; kw...)
 end
@@ -143,8 +128,7 @@ function RVM!(
 ) where T<:Real
     model = RVM!(
         XH, t, α;
-        rtol=rtol, atol=atol,
-        maxiter=maxiter, BatchSize=BatchSize
+        kw...
     )
     RVM!(model, XL, t, XLtest, α, β; kw...)
 end

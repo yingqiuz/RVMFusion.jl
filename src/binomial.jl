@@ -51,7 +51,7 @@ end
 # core algorithm
 function RVM!(
     X::AbstractMatrix{T}, t::AbstractVector{T}, α::AbstractVector{T};
-    rtol::T=convert(T, 1e-5), atol::T=convert(T, 1e-5), maxiter::Int=10000,
+    rtol::T=convert(T, 1e-5), atol::T=convert(T, 1e-7), maxiter::Int=10000,
     BatchSize::Int=size(X, 1), ϵ::T=convert(T, 1e-8)
 ) where T<:Real
 # default full batch
@@ -449,6 +449,80 @@ function RVM!(
     end
 end
 
+"""
+train + predict - posterior as prior
+"""
+function RVM!(
+    model::BnRVModel{T}, XL::AbstractMatrix{T},
+    t::AbstractVector{T}, XLtest::AbstractMatrix{T},
+    α::AbstractVector{T}, β::AbstractVector{T};
+    rtol::T=convert(T, 1e-5), atol::T=convert(T, 1e-8),
+    maxiter::Int=10000, n_samples::Int=5000, BatchSize::Int=size(XL, 1),
+    ϵ::T=convert(T, 1e-8), method::Int=2
+) where T<:Real
+    n, d = size(XL)
+    # should add more validity checks
+    size(t, 1) == n || throw(DimensionMismatch("Sizes of X and t mismatch."))
+    size(α, 1) == d || throw(DimensionMismatch("Sizes of X and initial α mismatch."))
+    num_batches = convert(Int, round(n / BatchSize))
+    # preallocate type-II likelihood (evidence) vector
+    llh = zeros(T, maxiter)
+    llh[1] = -Inf32
+    # remove zero columns
+    ind_nonzero = findall(
+        in(findall(x -> x > 0.001f0, std(XL, dims=1)[:])),
+        model.ind
+    )
+    ind_h = model.ind[ind_nonzero]
+    # prune wh and H
+    wl, w0 = (copy(model.w[ind_nonzero]) for _ ∈ 1:2)
+    H = inv(model.H) #copy(model.H[ind_nonzero, ind_nonzero])
+    H = H[ind_nonzero, ind_nonzero]
+    XL = XL[:, ind_h]
+    #β = model.α[ind_h]
+    #wl = zeros(T, size(ind_h, 1))
+    println("Setup done.")
+    for iter ∈ 2:maxiter
+        # remove irrelavent features
+        ind_l = findall(wl .> rtol) # optional
+        n_ind = size(ind_l, 1)
+        if n_ind == 0
+            return predict(model, XLtest)
+        end
+        n_ind = size(ind_l, 1)
+        #βtmp = copy(β[ind_l])
+        Htmp = copy(H[ind_l, ind_l])
+        wltmp = copy(wl[ind_l])
+        w0tmp = copy(w0[ind_l])
+        # iterate through batches
+        println("epoch $(iter-1). Starting...")
+        @showprogress 0.5 "epoch $(iter-1) " for b ∈ 1:num_batches
+            if b != num_batches
+                XLtmp = copy(XL[(b-1)*BatchSize+1:b*BatchSize, ind_l])
+                ttmp = copy(t[(b-1)*BatchSize+1:b*BatchSize])
+            else
+                XLtmp = copy(XL[(b-1)*BatchSize+1:end, ind_l])
+                ttmp = copy(t[(b-1)*BatchSize+1:end])
+            end
+            llh[iter] += Logit!(wltmp, w0tmp, Htmp, XLtmp, transpose(XLtmp),
+                ttmp, atol, maxiter
+            )
+        end
+        H[ind_l, ind_l] .= Htmp
+        wl[ind_l] .= wltmp
+        llh[iter] /= num_batches
+        incr = (llh[iter] - llh[iter-1]) / llh[iter-1]
+        println("epoch ", iter-1, " done. incr ", incr)
+        if abs(incr) < rtol || iter == maxiter
+            if iter == maxiter
+                @warn "Not converged after $(maxiter) iterations.
+                    Results might be inaccurate."
+            end
+            return predict(XLtest[:, ind_h[ind_l]], wltmp, inv!(Htmp))
+        end
+    end
+end
+
 function Logit(
     wh::AbstractVector{T}, wltmp::AbstractVector{T}, α::AbstractVector{T},
     X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
@@ -571,6 +645,69 @@ function Logit(
         else
             llhp = llh
             # update gradient
+            copyto!(gp, g)
+        end
+    end
+end
+
+function Logit!(
+    wl::AbstractVector{T}, w0::AbstractVector{T}, H::AbstractMatrix{T},
+    X::AbstractMatrix{T}, Xt::AbstractMatrix{T}, t::AbstractVector{T},
+    Xtest::AbstractMatrix{T}, tol::T, maxiter::Int,
+    ϵ::T=convert(T, 1e-8)
+) where T<:Real
+    n, d = size(X)
+    wp, g, gp = (zeros(T, d) for _ = 1:3)
+    a, y = (Vector{T}(undef, n) for _ = 1:2)
+    mul!(a, X, wl)
+    llhp=-Inf32
+    y .= logistic.(a)
+    η = [0.0001f0]
+    @debug "g" findall(isnan, g)
+    @debug "α" α[findall(isnan, g)]
+    @debug "wl" wl[findall(isnan, g)]
+    @debug "wp" wp[findall(isnan, g)]
+    for iter = 2:maxiter
+        # make a step
+        mul!(g, Xt, t .- y)
+        g .-= H * (wl .- w0)
+        #ldiv!(factorize(H), g)
+        # update w
+        @debug "g" g
+        @debug "α" α
+        @debug "wl" wl
+        @debug "wp" wp
+        copyto!(wp, wl)
+        wl .+= g .* η
+        mul!(a, X, wl)
+        llh = -sum(log1pexp.((1 .- 2 .* t) .* a)) -
+            (wl .- w0)' * H * (wl .- w0)/ 2
+        while !(llh - llhp > 0) & !(abs(llh - llhp) < tol)
+            η ./= 2
+            wl .= wp .+ g .* η
+            mul!(a, X, wl)
+            llh = -sum(log1pexp.((1 .- 2 .* t) .* a)) -
+                (wl .- w0)' * H * (wl .- w0)/ 2
+        end
+        y .= logistic.(a)
+        η .= abs(sum((wl .- wp) .* (g .- gp))) ./
+            (sum((g .- gp) .^ 2) + ϵ)
+        if abs(llh - llhp) < tol || iter == maxiter# || η[1] < 1e-8
+            if iter == maxiter
+                @warn "Not converged in finding the posterior of wl."
+            end
+            llh += logdet(H) / 2 - d*log(2π)/2
+            invH = LinearAlgebra.inv!(
+                cholesky!(
+                    X * Diagonal(y .* (1 .- y)) * Xt .+ H
+                )
+            ) # posterior cov
+            #derivH = -invH .* (wl' * HC * wl) .- transpose(invH) .+ inv!(cholesky(H))
+            #H .= (I - H * invH) \ (wl * wl')#diag(LinearAlgebra.inv!(HC))
+            H .= inv!(wl .* wl' .+ invH)
+            return llh
+        else
+            llhp = llh
             copyto!(gp, g)
         end
     end
