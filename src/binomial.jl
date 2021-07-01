@@ -242,6 +242,7 @@ function RVM!(
     #@show ind_nonzero
     if n_samples == 1
         whsamples = wh[:, :]
+        β = diag(LinearAlgebra.inv!(cholesky(model.H)))
     else
         println("Generate posterior samples of wh...")
         whsamples = rand(
@@ -366,6 +367,7 @@ function RVM!(
     #@show ind_nonzero
     if n_samples == 1
         whsamples = wh[:, :]
+        β = diag(LinearAlgebra.inv!(cholesky(model.H)))
     else
         println("Generate posterior samples of wh...")
         whsamples = rand(
