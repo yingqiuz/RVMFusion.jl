@@ -526,7 +526,7 @@ function RVM!(
                 @warn "Not converged after $(maxiter) iterations.
                     Results might be inaccurate."
             end
-            return predict(XLtest[:, ind_h[ind_l]], wltmp, inv!(Htmp))
+            return predict(XLtest[:, ind_h[ind_l]], wltmp, LinearAlgebra.inv!(Htmp))
         end
     end
 end
@@ -711,7 +711,7 @@ function Logit!(
             ) # posterior cov
             #derivH = -invH .* (wl' * HC * wl) .- transpose(invH) .+ inv!(cholesky(H))
             #H .= (I - H * invH) \ (wl * wl')#diag(LinearAlgebra.inv!(HC))
-            H .= LinearAlgebra.inv!(cholesky!(wl .* wl' .+ invH))
+            H .= LinearAlgebra.inv!(cholesky!((wl .- w0) .* (wl .- w0)' .+ invH .+ I(d) .* 1f-5))
             return llh
         else
             llhp = llh
