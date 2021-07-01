@@ -239,15 +239,19 @@ function RVM!(
     wh = model.w[ind_nonzero]
     H = model.H[ind_nonzero, ind_nonzero]
     #@show ind_h ind
-    #@show ind_nonzero
+    if n_samples == 1
+        whsamples = copy(wh[:, :])
+    else
     println("Generate posterior samples of wh...")
-    whsamples = rand(
-        MvNormal(
-            wh,
-            Symmetric(H)
-        ),
-        n_samples
-    )
+        whsamples = rand(
+            MvNormal(
+                wh,
+                Symmetric(H)
+            ),
+            n_samples
+        )
+    end
+    @info "whsamples" whsamples
     # remove irrelevant columns
     XL = XL[:, ind_h]
     β = β[ind_h]
@@ -360,14 +364,18 @@ function RVM!(
     H = model.H[ind_nonzero, ind_nonzero]
     #@show ind_h ind
     #@show ind_nonzero
+    if n_samples == 1
+        whsamples = copy(wh[:, :])
+    else
     println("Generate posterior samples of wh...")
-    whsamples = rand(
-        MvNormal(
-            wh,
-            Symmetric(H)
-        ),
-        n_samples
-    )
+        whsamples = rand(
+            MvNormal(
+                wh,
+                Symmetric(H)
+            ),
+            n_samples
+        )
+    end
     @info "whsamples" whsamples
     # remove irrelevant columns
     XL = XL[:, ind_h]
@@ -653,8 +661,7 @@ end
 function Logit!(
     wl::AbstractVector{T}, w0::AbstractVector{T}, H::AbstractMatrix{T},
     X::AbstractMatrix{T}, Xt::AbstractMatrix{T}, t::AbstractVector{T},
-    Xtest::AbstractMatrix{T}, tol::T, maxiter::Int,
-    ϵ::T=convert(T, 1e-8)
+    tol::T, maxiter::Int, ϵ::T=convert(T, 1e-8)
 ) where T<:Real
     n, d = size(X)
     wp, g, gp = (zeros(T, d) for _ = 1:3)
@@ -699,12 +706,12 @@ function Logit!(
             llh += logdet(H) / 2 - d*log(2π)/2
             invH = LinearAlgebra.inv!(
                 cholesky!(
-                    X * Diagonal(y .* (1 .- y)) * Xt .+ H
+                    Symmetric(Xt * Diagonal(y .* (1 .- y)) * X .+ H)
                 )
             ) # posterior cov
             #derivH = -invH .* (wl' * HC * wl) .- transpose(invH) .+ inv!(cholesky(H))
             #H .= (I - H * invH) \ (wl * wl')#diag(LinearAlgebra.inv!(HC))
-            H .= inv!(wl .* wl' .+ invH)
+            H .= LinearAlgebra.inv!(cholesky!(wl .* wl' .+ invH))
             return llh
         else
             llhp = llh
