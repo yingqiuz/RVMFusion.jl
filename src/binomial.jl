@@ -500,6 +500,7 @@ function RVM!(
         n_ind = size(ind_l, 1)
         #βtmp = copy(β[ind_l])
         Htmp = copy(H[ind_l, ind_l])
+        invH = similar(Htmp)
         wltmp = copy(wl[ind_l])
         w0tmp = copy(w0[ind_l])
         # iterate through batches
@@ -512,11 +513,12 @@ function RVM!(
                 XLtmp = copy(XL[(b-1)*BatchSize+1:end, ind_l])
                 ttmp = copy(t[(b-1)*BatchSize+1:end])
             end
-            llh[iter] += Logit!(wltmp, w0tmp, Htmp, XLtmp, transpose(XLtmp),
+            llhtmp, invH = Logit!(wltmp, w0tmp, Htmp, XLtmp, transpose(XLtmp),
                 ttmp, atol, maxiter
             )
+            llh[iter] += llhtmp
         end
-        H[ind_l, ind_l] .= Htmp
+        #H[ind_l, ind_l] .= Htmp
         wl[ind_l] .= wltmp
         llh[iter] /= num_batches
         incr = (llh[iter] - llh[iter-1]) / llh[iter-1]
@@ -526,7 +528,7 @@ function RVM!(
                 @warn "Not converged after $(maxiter) iterations.
                     Results might be inaccurate."
             end
-            return predict(XLtest[:, ind_h[ind_l]], wltmp, LinearAlgebra.inv!(Htmp))
+            return predict(XLtest[:, ind_h[ind_l]], wltmp, invH)
         end
     end
 end
@@ -703,7 +705,7 @@ function Logit!(
             if iter == maxiter
                 @warn "Not converged in finding the posterior of wl."
             end
-            llh += logdet(H) / 2 - d*log(2π)/2
+            #llh += logdet(H) / 2 - d*log(2π)/2
             invH = LinearAlgebra.inv!(
                 cholesky!(
                     Symmetric(Xt * Diagonal(y .* (1 .- y)) * X .+ H)
@@ -711,8 +713,8 @@ function Logit!(
             ) # posterior cov
             #derivH = -invH .* (wl' * HC * wl) .- transpose(invH) .+ inv!(cholesky(H))
             #H .= (I - H * invH) \ (wl * wl')#diag(LinearAlgebra.inv!(HC))
-            H .= LinearAlgebra.inv!(cholesky!((wl .- w0) .* (wl .- w0)' .+ invH .+ I(d) .* 1f-5))
-            return llh
+            #H .= LinearAlgebra.inv!(cholesky!((wl .- w0) .* (wl .- w0)' .+ invH .+ I(d) .* 1f-6))
+            return llh, invH
         else
             llhp = llh
             copyto!(gp, g)
