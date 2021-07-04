@@ -326,7 +326,7 @@ function cal_rotation(
     g, gp = (zeros(T, d, d) for _ = 1:2)
     #@debug "U" U' * U size(U)
     #@debug "g" size(g)
-    η = [0.0001f0]
+    η = [1f-6]
     a, y = (Vector{T}(undef, n) for _ = 1:2)
     mul!(a, X, U' * wh)
     y = logistic.(a)
@@ -342,12 +342,12 @@ function cal_rotation(
         copyto!(Up, U)
         U .-= η .* g
         mul!(a, X, U' * wh)
-        llh = -sum(log1pexp.((1 .- 2 .* t) .* a))
-        while !(llh - llhp > 0) & !(sum((g).^2) < tol)
+        llh = sum(log1pexp.((1 .- 2 .* t) .* a))
+        while !(llh - llhp < 0) & !(sum((g).^2) < tol)
             η ./= 2
             U .= Up .- g .* η
             mul!(a, X, U' * wh)
-            llh = -sum(log1pexp.((1 .- 2 .* t) .* a))
+            llh = sum(log1pexp.((1 .- 2 .* t) .* a))
         end
         y .= logistic.(a)
         η .= abs(sum((U .- Up) .* (g .- gp))) ./
