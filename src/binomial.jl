@@ -328,7 +328,7 @@ function cal_rotation(
     #@debug "U" U' * U size(U)
     #@debug "g" size(g)
     η = [1f-6]
-    β = [0.9f0]
+    #β = [0.9f0]
     a, y = (Vector{T}(undef, n) for _ = 1:2)
     mul!(a, X, U' * wh)
     @debug "a" a
@@ -336,25 +336,33 @@ function cal_rotation(
     @debug "y" y
     @debug "U" U
     @debug "(y .- t)' * X" (y .- t)' * X
-    llhp = -Inf
-    bs = 10
+    llhp = Inf
+    #bs = 10
     for iter = 2:maxiter
-        for nn = 1:Int(round((n/bs)))
-            @views mul!(
-                g, wh[:, :],
-                (y[1 + bs*(nn-1):bs*nn] .- t[1 + bs*(nn-1) : bs*nn])' *
-                X[1 + bs*(nn-1) : bs*nn, :]
-            )
-            #g .= @views wh[:, :] * (y[iter % n] .- t[iter % n])' * X[iter % n, :]
-            g .-= U * transpose(g) * U
-            copyto!(Up, U)
-            U .-= η .* g #+ β .* gp
+        #for nn = 1:Int(round((n/bs)))
+        #@views mul!(
+        #    g, wh[:, :],
+        #    (y[1 + bs*(nn-1):bs*nn] .- t[1 + bs*(nn-1) : bs*nn])' *
+        #    X[1 + bs*(nn-1) : bs*nn, :]
+        #)
+        mul!(g, wh[:, :], (y .- t)' * X)
+        #g .= @views wh[:, :] * (y[iter % n] .- t[iter % n])' * X[iter % n, :]
+        g .-= U * transpose(g) * U
+        copyto!(Up, U)
+        U .-= η .* g #+ β .* gp
+        mul!(a, X, U' * wh)
+        llh = sum(log1pexp.((1 .- 2 .* t) .* a))
+        while !(llh - llhp < 0)
+            η ./= 2
+            U .= Up .- g .* η
             mul!(a, X, U' * wh)
-            y .= logistic.(a)
-            copyto!(gp, g)
-            #η .= abs(sum((U .- Up) .* (g .- gp))) ./
-            #    (sum((g .- gp) .^ 2) + ϵ)
+            llh = sum(log1pexp.((1 .- 2 .* t) .* a))
         end
+        y .= logistic.(a)
+        copyto!(gp, g)
+        η .= abs(sum((U .- Up) .* (g .- gp))) ./
+            (sum((g .- gp) .^ 2) + ϵ)
+        #end
         @debug "g" g
         @debug "U" U
         @debug "η" η
