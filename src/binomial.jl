@@ -340,7 +340,6 @@ function cal_rotation(
         for nn = 1:n
             @views mul!(g, wh[:, :], (y[nn] - t[nn]) .* Xt[:, nn]')
             #g .= @views wh[:, :] * (y[iter % n] .- t[iter % n])' * X[iter % n, :]
-            @debug "g" g
             g .-= U * transpose(g) * U
             #mul!(g, g .- g', U .+ Up)
             @debug "g" g
@@ -360,10 +359,11 @@ function cal_rotation(
             y .= logistic.(a)
             #η .= abs(sum((U .- Up) .* (g .- gp))) ./
             #    (sum((g .- gp) .^ 2) + ϵ)
-            @debug "U" U
-            @debug "η" η
-            @debug "llh" sum((g).^2)
         end
+        @debug "g" g
+        @debug "U" U
+        @debug "η" η
+        @debug "llh" sum((g).^2)
         if sum((g .- gp).^2) < tol || iter == maxiter
             break
         end
