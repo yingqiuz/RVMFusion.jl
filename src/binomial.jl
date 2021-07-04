@@ -183,7 +183,7 @@ function Logit!(
         #@debug "r2" (sum((g .- gp) .^ 2) + 1e-4)
         #@debug "g - gp, w - wp" g .- gp w .- wp
         r .= abs(sum((w .- wp) .* (g .- gp))) / (sum((g .- gp) .^ 2) + ϵ)
-        @debug "r" r
+        #@debug "r" r
         llhp = llh
     end
 end
@@ -264,10 +264,11 @@ function RVM!(
             #    g .+= Logit(whtmp[:, nn], wltmp, βtmp, XLtmp, transpose(XLtmp),
             #    ttmp, atol, maxiter)
             #end
+            Q, R = qr(randn(n_ind, n_ind))
             g = whtmp |> eachcol |>
             Map(
                 x -> cal_rotation(
-                    x, XLtmp, transpose(XLtmp),
+                    x, Q, XLtmp, transpose(XLtmp),
                     ttmp, XLtest[:, ind_h[ind_l]], atol, maxiter
                 )
             ) |> Broadcasting() |> Folds.sum
@@ -315,14 +316,14 @@ function RVM!(
 end
 
 function cal_rotation(
-    wh::AbstractVector{T}, #wltmp::AbstractVector{T}, α::AbstractVector{T},
+    wh::AbstractVector{T}, Uinit::AbstractVector{T}, #α::AbstractVector{T},
     X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
     t::AbstractVector{T}, Xtest::AbstractMatrix{T}, tol::T, maxiter::Int,
     is_final::Bool=false, ϵ::T=convert(T, 1e-8)
 ) where T <: Real
     n, d = size(X)
-    q, r = qr(randn(d, d))
-    U, Up = (copy(q) for _ = 1:2)
+    #q, r = qr(randn(d, d))
+    U, Up = (copy(Uinit) for _ = 1:2)
     g, gp = (zeros(T, d, d) for _ = 1:2)
     #@debug "U" U' * U size(U)
     #@debug "g" size(g)
