@@ -350,8 +350,8 @@ function cal_rotation(
         #    llh = sum(log1pexp.((1 .- 2 .* t) .* a))
         #end
         y .= logistic.(a)
-        η .= abs(sum((U .- Up) .* (g .- gp))) ./
-            (sum((g .- gp) .^ 2) + ϵ)
+        #η .= abs(sum((U .- Up) .* (g .- gp))) ./
+        #    (sum((g .- gp) .^ 2) + ϵ)
         @debug "U" U' * U #U * U'
         @debug "η" η
         @debug "llh" sum((g).^2)
