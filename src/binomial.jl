@@ -366,7 +366,7 @@ function cal_rotation(
             break
         end
         copyto!(gp, g)
-        llhp = llh
+        #llhp = llh
     end
     # make predictions
     return logistic.(Xtest * U' * wh)
