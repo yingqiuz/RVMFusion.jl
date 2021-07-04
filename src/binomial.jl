@@ -334,6 +334,7 @@ function cal_rotation(
     y = logistic.(a)
     @debug "y" y
     @debug "U" U
+    @debug "(y .- t)' * X" (y .- t)' * X
     llhp = -Inf
     for iter = 2:10
         g .= wh[:, :] * (y .- t)' * X
