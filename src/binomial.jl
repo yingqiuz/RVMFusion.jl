@@ -364,7 +364,7 @@ function cal_rotation(
             @debug "η" η
             @debug "llh" sum((g).^2)
         end
-        if sum((g).^2) < tol || iter == maxiter
+        if sum((g .- gp).^2) < tol || iter == maxiter
             break
         end
         copyto!(gp, g)
