@@ -316,7 +316,7 @@ function RVM!(
 end
 
 function cal_rotation(
-    wh::AbstractVector{T}, Uinit::AbstractVector{T}, #α::AbstractVector{T},
+    wh::AbstractVector{T}, Uinit::AbstractArray{T}, #α::AbstractVector{T},
     X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
     t::AbstractVector{T}, Xtest::AbstractMatrix{T}, tol::T, maxiter::Int,
     is_final::Bool=false, ϵ::T=convert(T, 1e-8)
