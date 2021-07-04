@@ -338,7 +338,7 @@ function cal_rotation(
     llhp = -Inf
     for iter = 2:maxiter
         for nn = 1:Int(round((n/1000)))
-            @views mul!(g, wh[:, :], (y[1 + 1000(nn-1) : 1000nn] - t[1 + 1000(nn-1) : 1000nn]) .* Xt[:, 1 + 1000(nn-1) : 1000nn]')
+            @views mul!(g, wh[:, :], (y[1 + 1000(nn-1) : 1000nn] .- t[1 + 1000(nn-1) : 1000nn])' * X[1 + 1000(nn-1) : 1000nn, :])
             #g .= @views wh[:, :] * (y[iter % n] .- t[iter % n])' * X[iter % n, :]
             g .-= U * transpose(g) * U
             copyto!(Up, U)
