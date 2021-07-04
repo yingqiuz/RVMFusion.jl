@@ -327,7 +327,7 @@ function cal_rotation(
     g, gp = (zeros(T, d, d) for _ = 1:2)
     #@debug "U" U' * U size(U)
     #@debug "g" size(g)
-    η = [1f-7]
+    η = [1f-8]
     a, y = (Vector{T}(undef, n) for _ = 1:2)
     mul!(a, X, U' * wh)
     @debug "a" a
