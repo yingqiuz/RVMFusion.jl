@@ -337,25 +337,13 @@ function cal_rotation(
     @debug "(y .- t)' * X" (y .- t)' * X
     llhp = -Inf
     for iter = 2:maxiter
-        for nn = 1:n
-            @views mul!(g, wh[:, :], (y[nn] - t[nn]) .* Xt[:, nn]')
+        for nn = 1:Int(round((n/1000)))
+            @views mul!(g, wh[:, :], (y[1 + 1000(nn-1) : 1000nn] - t[1 + 1000(nn-1) : 1000nn]) .* Xt[:, 1 + 1000(nn-1) : 1000nn]')
             #g .= @views wh[:, :] * (y[iter % n] .- t[iter % n])' * X[iter % n, :]
             g .-= U * transpose(g) * U
-            #mul!(g, g .- g', U .+ Up)
-            @debug "g" g
-            #mul!(gU, wh[:, :] * (t .- y)' * X, U)
-            #gU .= Xt * (t .- y) * wh' .- U * gU
-            #gU .= Xt * (t .- y) * wh'
             copyto!(Up, U)
             U .-= η .* g
             mul!(a, X, U' * wh)
-            #llh = sum(log1pexp.((1 .- 2 .* t) .* a))
-            #while !(llh - llhp < 0) & !(sum((g).^2) < tol)
-            #    η ./= 2
-            #    U .= Up .- g .* η
-            #    mul!(a, X, U' * wh)
-            #    llh = sum(log1pexp.((1 .- 2 .* t) .* a))
-            #end
             y .= logistic.(a)
             #η .= abs(sum((U .- Up) .* (g .- gp))) ./
             #    (sum((g .- gp) .^ 2) + ϵ)
