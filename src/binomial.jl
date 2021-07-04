@@ -352,6 +352,7 @@ function cal_rotation(
         U .-= η .* g #+ β .* gp
         mul!(a, X, U' * wh)
         llh = sum(log1pexp.((1 .- 2 .* t) .* a))
+        @debug "llh" llh
         while !(llh - llhp < 0)
             η ./= 2
             U .= Up .- g .* η
@@ -365,7 +366,7 @@ function cal_rotation(
         @debug "g" g
         @debug "U" U
         @debug "η" η
-        @debug "llh" sum((g).^2)
+        @debug "sum((g).^2)" sum((g).^2)
         if sum((g).^2) < tol || iter == maxiter
             break
         end
