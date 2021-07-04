@@ -332,8 +332,9 @@ function cal_rotation(
     mul!(a, X, U' * wh)
     y = logistic.(a)
     llhp = -Inf
-    for iter = 2:maxiter
+    for iter = 2:10
         g .= wh[:, :] * (y .- t)' * X
+        @debug "g" g
         g .-= U * transpose(g) * U
         #mul!(g, g .- g', U .+ Up)
         @debug "g" g
