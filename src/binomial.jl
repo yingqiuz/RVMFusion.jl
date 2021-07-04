@@ -155,32 +155,12 @@ function Logit!(
     r = [0.0001f0]
     for iter = 2:maxiter
         copyto!(gp, g)
-        @debug "g" g
-        @debug "α" α
-        @debug "w" w
-        #@debug "t" t
-        @debug "Xt" Xt
-        #y .= t .- y
-        #y[abs.(y) .< 1e-6] .= 0
         mul!(g, Xt, t .- y)
-        @debug "Xt * (t .- y)" Xt * (t .- y)
-        @debug "y" y
-        #@info "t" t
-        @debug "g" g
-        @debug "α" α
-        @debug "w" w
         g .-= α .* w
-        @debug "wp" wp[findall(isnan, g)]
         copyto!(wp, w)
         w .+= g .* r
         mul!(a, X, w)
-
         llh = -sum(log1pexp.((1 .- 2 .* t) .* a)) - sum(α .* w .^ 2)/2
-        @debug "llh1" sum(log1p.(exp.((1 .- 2 .* t) .* a)))
-        @debug "llh2" sum(α .* w .^ 2) / 2
-        @debug "llh2" sum(w .^ 2) / 2
-        @debug "w" findall(isnan, w)
-        @debug "min w" minimum(w)
         while !(llh - llhp > 0) & !(abs(llh - llhp) < tol)
             r ./= 2
             w .= wp .+ g .* r
@@ -190,8 +170,6 @@ function Logit!(
 
         y .= logistic.(a)
         #y = round.(y, digits=4)
-        @debug "y" findall(isnan, y) y[findall(isnan, y)]
-        @debug "a" findall(isnan, a) a[findall(isnan, y)]
         if abs(llh - llhp) < tol || iter == maxiter
             llh += sum(log.(α))/2 - d*log(2π)/2
             WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
@@ -207,130 +185,6 @@ function Logit!(
         r .= abs(sum((w .- wp) .* (g .- gp))) / (sum((g .- gp) .^ 2) + ϵ)
         @debug "r" r
         llhp = llh
-    end
-end
-
-"""
-train only
-"""
-function RVM!(
-    model::BnRVModel{T}, XL::AbstractMatrix{T},
-    t::AbstractVector{T}, #XLtest::AbstractMatrix{T},
-    α::AbstractVector{T}, β::AbstractVector{T};
-    rtol::T=convert(T, 1e-5), atol::T=convert(T, 1e-8),
-    maxiter::Int=10000, n_samples::Int=5000,
-    BatchSize::Int=size(XL, 1), ϵ::T=convert(T, 1e-8)
-) where T<:Real
-    n, d = size(XL)
-    # should add more validity checks
-    size(t, 1) == n || throw(DimensionMismatch("Sizes of X and t mismatch."))
-    size(α, 1) == d || throw(DimensionMismatch("Sizes of X and initial α mismatch."))
-    num_batches = convert(Int, round(n / BatchSize))
-    # preallocate type-II likelihood (evidence) vector
-    llh = zeros(T, maxiter)
-    llh[1] = -Inf32
-    # remove zero columns
-    ind_nonzero = findall(
-        in(findall(x -> x > 0.001f0, std(XL, dims=1)[:])),
-        model.ind
-    )
-    ind_h = model.ind[ind_nonzero]
-    # prune wh and H
-    if n_samples == 1
-        whsamples = wh[:, :]
-        β = diag(LinearAlgebra.inv!(cholesky(model.H)))
-        β = β[ind_nonzero]
-    else
-        println("Generate posterior samples of wh...")
-        whsamples = rand(
-            MvNormal(
-                wh,
-                Symmetric(H)
-            ),
-            n_samples
-        )
-        β = β[ind_h]
-    end
-    @info "whsamples" whsamples
-    # remove irrelevant columns
-    XL = XL[:, ind_h]
-    β = β[ind_h]
-    wl = zeros(T, size(ind_h, 1))
-    println("Setup done.")
-    for iter ∈ 2:maxiter
-        # remove irrelavent features
-        ind_l = findall(β .< (1/rtol)) # optional
-        n_ind = size(ind_l, 1)
-        #if n_ind == 0
-            #return model
-        #end
-        n_ind = size(ind_l, 1)
-        βtmp = copy(β[ind_l])
-        wltmp = copy(wl[ind_l])
-        whtmp = copy(whsamples[ind_l, :])
-        # iterate through batches
-        @showprogress 0.5 "epoch $(iter-1) " for b ∈ 1:num_batches
-            if b != num_batches
-                XLtmp = copy(XL[(b-1)*BatchSize+1:b*BatchSize, ind_l])
-                ttmp = copy(t[(b-1)*BatchSize+1:b*BatchSize])
-            else
-                XLtmp = copy(XL[(b-1)*BatchSize+1:end, ind_l])
-                ttmp = copy(t[(b-1)*BatchSize+1:end])
-            end
-            g = whtmp |> eachcol |>
-            Map(
-                x -> Logit(
-                    x, wltmp, βtmp, XLtmp, transpose(XLtmp),
-                    ttmp, atol, maxiter
-                )
-            ) |> Broadcasting() |> Folds.sum
-            g ./= n_samples
-            llh[iter] += g[end] + sum(log.(βtmp))/2 - n_ind*log(2π)/2
-            βtmp .= @views (
-                1 .- βtmp .* g[n_ind+1:2n_ind]
-            ) ./ (g[1:n_ind] .+ ϵ)
-            wltmp .= @view g[2n_ind+1:3n_ind]
-            #βsum[ind_l] .+= @views g[1:end-1] .^ 2
-        end
-        β[ind_l] .= βtmp
-        wl[ind_l] .= wltmp
-        llh[iter] /= num_batches
-        incr = (llh[iter] - llh[iter-1]) / llh[iter-1]
-        println("epoch ", iter-1, " done. incr ", incr)
-        if abs(incr) < rtol || iter == maxiter
-            if iter == maxiter
-                @warn "Not converged after $(maxiter) iterations.
-                    Results might be inaccurate."
-            end
-            wl = zeros(T, n_ind, n_samples)
-            H = zeros(T, n_ind, n_ind, n_samples)
-            Threads.@threads for col ∈ 1:n_samples
-                for b ∈ 1:num_batches
-                    if b != num_batches
-                        XLtmp = copy(XL[(b-1)*BatchSize+1:b*BatchSize, ind_l])
-                        ttmp = copy(t[(b-1)*BatchSize+1:b*BatchSize])
-                    else
-                        XLtmp = copy(XL[(b-1)*BatchSize+1:end, ind_l])
-                        ttmp = copy(t[(b-1)*BatchSize+1:end])
-                    end
-                    wl[:, col] .= Logit(
-                        whtmp[:, col], wltmp, βtmp, XLtmp,
-                        transpose(XLtmp), ttmp, atol,
-                        maxiter, true
-                    )
-                    H[:, :, col] .+= WoodburyInv!(
-                        βtmp,
-                        Diagonal(
-                            sqrt.(
-                                #@avx 1 ./ (1 .+ exp.(XLtmp * view(wl, :, col)))
-                                logistic.(XLtmp * view(wl, :, col))
-                            )
-                        ) * XLtmp
-                    ) ./ num_batches
-                end
-            end
-            return BnFusedRVModel(wl ./ num_batches, H, ind_h[ind_l])
-        end
     end
 end
 
@@ -384,7 +238,7 @@ function RVM!(
     XL = XL[:, ind_h]
     wl = zeros(T, size(ind_h, 1))
     println("Setup done.")
-    for iter ∈ 2:maxiter
+    for iter ∈ 2:2
         # remove irrelavent features
         ind_l = findall(β .< (1/rtol)) # optional
         n_ind = size(ind_l, 1)
@@ -412,17 +266,18 @@ function RVM!(
             #end
             g = whtmp |> eachcol |>
             Map(
-                x -> Logit(
-                    x, wltmp, βtmp, XLtmp, transpose(XLtmp),
-                    ttmp, atol, maxiter
+                x -> cal_rotation(
+                    x, XLtmp, transpose(XLtmp),
+                    ttmp, XLtest[:, ind_h[ind_l]], atol, maxiter
                 )
             ) |> Broadcasting() |> Folds.sum
             g ./= n_samples
-            llh[iter] += g[end] + sum(log.(βtmp))/2 - n_ind*log(2π)/2
-            βtmp .= @views (
-                1 .- βtmp .* g[n_ind+1:2n_ind]
-            ) ./ (g[1:n_ind] .+ ϵ)
-            wltmp .= @view g[2n_ind+1:3n_ind]
+            return g
+            #llh[iter] += g[end] + sum(log.(βtmp))/2 - n_ind*log(2π)/2
+            #βtmp .= @views (
+            #    1 .- βtmp .* g[n_ind+1:2n_ind]
+            #) ./ (g[1:n_ind] .+ ϵ)
+            #wltmp .= @view g[2n_ind+1:3n_ind]
             #βsum[ind_l] .+= @views g[1:end-1] .^ 2
         end
         β[ind_l] .= βtmp
@@ -457,6 +312,57 @@ function RVM!(
             return predictions ./ num_batches
         end
     end
+end
+
+function cal_rotation(
+    wh::AbstractVector{T}, #wltmp::AbstractVector{T}, α::AbstractVector{T},
+    X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
+    t::AbstractVector{T}, Xtest::AbstractMatrix{T}, tol::T, maxiter::Int,
+    is_final::Bool=false, ϵ::T=convert(T, 1e-8)
+) where T <: Real
+    n, d = size(X)
+    q, r = qr(randn(d, d))
+    U, Up = (copy(q) for _ = 1:2)
+    g, gp = (zeros(T, d, d) for _ = 1:2)
+    #@debug "U" U' * U size(U)
+    #@debug "g" size(g)
+    η = [0.001f0]
+    a, y = (Vector{T}(undef, n) for _ = 1:2)
+    mul!(a, X, U' * wh)
+    y = logistic.(a)
+    llhp = -Inf
+    for iter = 2:maxiter
+        g .= wh[:, :] * (y .- t)' * X# * U'
+        g .-= U * transpose(g) * U
+        #mul!(g, g .- g', U .+ Up)
+        @debug "g" g
+        #mul!(gU, wh[:, :] * (t .- y)' * X, U)
+        #gU .= Xt * (t .- y) * wh' .- U * gU
+        #gU .= Xt * (t .- y) * wh'
+        copyto!(Up, U)
+        U .-= η .* g
+        mul!(a, X, U' * wh)
+        llh = sum(log1pexp.((1 .- 2 .* t) .* a))
+        #while !(llh - llhp > 0) & !(abs(llh - llhp) < tol)
+        #    η ./= 2
+        #    U .= Up .- g .* η
+        #    mul!(a, X, U' * wh)
+        #    llh = sum(log1pexp.((1 .- 2 .* t) .* a))
+        #end
+        y .= logistic.(a)
+        #η .= abs(sum((U .- Up) .* (g .- gp))) ./
+        #    (sum((g .- gp) .^ 2) + ϵ)
+        @debug "U" U' * U #U * U'
+        @debug "η" η
+        @debug "llh" sum((g).^2)
+        if sum((g).^2) < tol || iter == maxiter
+            break
+        end
+        copyto!(gp, g)
+        llhp = llh
+    end
+    # make predictions
+    return logistic.(Xtest * U' * wh)
 end
 
 function Logit(
