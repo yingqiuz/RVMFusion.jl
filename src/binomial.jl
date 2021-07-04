@@ -333,6 +333,7 @@ function cal_rotation(
     @debug "a" a
     y = logistic.(a)
     @debug "y" y
+    @debug "U" U
     llhp = -Inf
     for iter = 2:10
         g .= wh[:, :] * (y .- t)' * X
@@ -356,7 +357,7 @@ function cal_rotation(
         y .= logistic.(a)
         #η .= abs(sum((U .- Up) .* (g .- gp))) ./
         #    (sum((g .- gp) .^ 2) + ϵ)
-        @debug "U" U' * U #U * U'
+        @debug "U" U
         @debug "η" η
         @debug "llh" sum((g).^2)
         if sum((g).^2) < tol || iter == maxiter
