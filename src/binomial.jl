@@ -342,16 +342,16 @@ function cal_rotation(
         copyto!(Up, U)
         U .-= η .* g
         mul!(a, X, U' * wh)
-        llh = sum(log1pexp.((1 .- 2 .* t) .* a))
-        #while !(llh - llhp > 0) & !(abs(llh - llhp) < tol)
-        #    η ./= 2
-        #    U .= Up .- g .* η
-        #    mul!(a, X, U' * wh)
-        #    llh = sum(log1pexp.((1 .- 2 .* t) .* a))
-        #end
+        llh = -sum(log1pexp.((1 .- 2 .* t) .* a))
+        while !(llh - llhp > 0) & !(sum((g).^2) < tol)
+            η ./= 2
+            U .= Up .- g .* η
+            mul!(a, X, U' * wh)
+            llh = -sum(log1pexp.((1 .- 2 .* t) .* a))
+        end
         y .= logistic.(a)
-        #η .= abs(sum((U .- Up) .* (g .- gp))) ./
-        #    (sum((g .- gp) .^ 2) + ϵ)
+        η .= abs(sum((U .- Up) .* (g .- gp))) ./
+            (sum((g .- gp) .^ 2) + ϵ)
         @debug "U" U' * U #U * U'
         @debug "η" η
         @debug "llh" sum((g).^2)
