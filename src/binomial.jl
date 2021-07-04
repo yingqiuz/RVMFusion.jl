@@ -327,8 +327,8 @@ function cal_rotation(
     g, gp = (zeros(T, d, d) for _ = 1:2)
     #@debug "U" U' * U size(U)
     #@debug "g" size(g)
-    η = [1f-6]
-    β = [0.8f0]
+    η = [1f-4]
+    β = [0.9f0]
     a, y = (Vector{T}(undef, n) for _ = 1:2)
     mul!(a, X, U' * wh)
     @debug "a" a
@@ -351,6 +351,7 @@ function cal_rotation(
             U .-= η .* g + β .* gp
             mul!(a, X, U' * wh)
             y .= logistic.(a)
+            copyto!(gp, g)
             #η .= abs(sum((U .- Up) .* (g .- gp))) ./
             #    (sum((g .- gp) .^ 2) + ϵ)
         end
@@ -361,7 +362,6 @@ function cal_rotation(
         if sum((g .- gp).^2) < tol || iter == maxiter
             break
         end
-        copyto!(gp, g)
         #llhp = llh
     end
     # make predictions
