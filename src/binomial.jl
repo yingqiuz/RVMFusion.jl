@@ -332,7 +332,7 @@ function cal_rotation(
     y = logistic.(a)
     llhp = -Inf
     for iter = 2:maxiter
-        g .= wh[:, :] * (y .- t)' * X# * U'
+        g .= wh[:, :] * (y .- t)' * X
         g .-= U * transpose(g) * U
         #mul!(g, g .- g', U .+ Up)
         @debug "g" g
@@ -367,13 +367,14 @@ end
 
 function Logit(
     wh::AbstractVector{T}, wltmp::AbstractVector{T}, α::AbstractVector{T},
-    X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
+    U::AbstractMatrix{T}, X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
     t::AbstractVector{T}, tol::T, maxiter::Int,
     is_final::Bool=false, ϵ::T=convert(T, 1e-8)
 ) where T<:Real
     n, d = size(X)
     wl = copy(wltmp)
-    wp, g, gp = (zeros(T, d) for _ = 1:3)
+    g, gp = (zeros(T, d, d) for _ = 1:2)
+    Up = copy(U)
     a, y = (Vector{T}(undef, n) for _ = 1:2)
     mul!(a, X, wh .+ wl)
     llhp = -Inf32
