@@ -359,7 +359,6 @@ function cal_rotation(
             llh = sum(log1pexp.((1 .- 2 .* t) .* a))
         end
         y .= logistic.(a)
-        copyto!(gp, g)
         η .= abs(sum((U .- Up) .* (g .- gp))) ./
             (sum((g .- gp) .^ 2) + ϵ)
         #end
@@ -370,7 +369,8 @@ function cal_rotation(
         if sum((g).^2) < tol || iter == maxiter
             break
         end
-        #llhp = llh
+        llhp = llhp
+        copyto!(gp, g)
     end
     # make predictions
     return logistic.(Xtest * U' * wh)
