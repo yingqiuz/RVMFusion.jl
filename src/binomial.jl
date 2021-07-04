@@ -264,7 +264,7 @@ function RVM!(
             #    g .+= Logit(whtmp[:, nn], wltmp, βtmp, XLtmp, transpose(XLtmp),
             #    ttmp, atol, maxiter)
             #end
-            Q, R = qr(randn(n_ind, n_ind))
+            Q, R = qr(randn(T, n_ind, n_ind))
             g = whtmp |> eachcol |>
             Map(
                 x -> cal_rotation(
