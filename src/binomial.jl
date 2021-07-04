@@ -327,7 +327,7 @@ function cal_rotation(
     g, gp = (zeros(T, d, d) for _ = 1:2)
     #@debug "U" U' * U size(U)
     #@debug "g" size(g)
-    η = [1f-6]
+    η = [1f-7]
     a, y = (Vector{T}(undef, n) for _ = 1:2)
     mul!(a, X, U' * wh)
     @debug "a" a
@@ -336,7 +336,7 @@ function cal_rotation(
     @debug "U" U
     @debug "(y .- t)' * X" (y .- t)' * X
     llhp = -Inf
-    for iter = 2:10
+    for iter = 2:maxiter
         g .= wh[:, :] * (y .- t)' * X
         @debug "g" g
         g .-= U * transpose(g) * U
