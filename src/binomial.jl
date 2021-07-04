@@ -337,7 +337,8 @@ function cal_rotation(
     @debug "(y .- t)' * X" (y .- t)' * X
     llhp = -Inf
     for iter = 2:maxiter
-        g .= @views wh[:, :] * (y[iter % n] .- t[iter % n])' * X[iter % n, :]
+        @views mul!(g, wh[:, :], (y[iter % n] - t[iter % n]) .* Xt[:, iter % n]')
+        #g .= @views wh[:, :] * (y[iter % n] .- t[iter % n])' * X[iter % n, :]
         @debug "g" g
         g .-= U * transpose(g) * U
         #mul!(g, g .- g', U .+ Up)
@@ -348,7 +349,7 @@ function cal_rotation(
         copyto!(Up, U)
         U .-= η .* g
         mul!(a, X, U' * wh)
-        llh = sum(log1pexp.((1 .- 2 .* t) .* a))
+        #llh = sum(log1pexp.((1 .- 2 .* t) .* a))
         #while !(llh - llhp < 0) & !(sum((g).^2) < tol)
         #    η ./= 2
         #    U .= Up .- g .* η
