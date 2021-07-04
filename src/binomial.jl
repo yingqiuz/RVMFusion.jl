@@ -330,7 +330,9 @@ function cal_rotation(
     η = [1f-6]
     a, y = (Vector{T}(undef, n) for _ = 1:2)
     mul!(a, X, U' * wh)
+    @debug "a" a
     y = logistic.(a)
+    @debug "y" y
     llhp = -Inf
     for iter = 2:10
         g .= wh[:, :] * (y .- t)' * X
