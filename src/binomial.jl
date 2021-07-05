@@ -265,6 +265,7 @@ function RVM!(
             #    ttmp, atol, maxiter)
             #end
             Q, R = qr(randn(T, n_ind, n_ind))
+            Q = I(n_ind)
             g = whtmp |> eachcol |>
             Map(
                 x -> cal_rotation(
