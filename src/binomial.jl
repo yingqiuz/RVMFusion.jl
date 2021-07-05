@@ -357,7 +357,7 @@ function cal_rotation(
         copyto!(gp, g)
         while !(llh - llhp < 0)
             η ./= 2
-            U .= Up .- g .* η .+ randn(T, d, d)
+            U .= Up .- g .* η .+ randn(T, d, d) * 0.01
             mul!(a, X, U' * wh)
             llh = sum(log1pexp.((1 .- 2 .* t) .* a))
             @debug "llh" llh - llhp
