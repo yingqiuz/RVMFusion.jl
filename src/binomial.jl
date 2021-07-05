@@ -333,7 +333,7 @@ function cal_rotation(
     mul!(a, X, U' * wh)
     y = logistic.(a)
     llhp = Inf
-    bs = 1000
+    bs = n
     η = [1f-6]
     for iter = 2:maxiter
         for nn = 1:Int(round((n/bs)))
