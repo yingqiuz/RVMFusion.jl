@@ -337,7 +337,7 @@ function cal_rotation(
     @debug "(y .- t)' * X" (y .- t)' * X
     llhp = Inf
     #bs = 10
-    η = [1f-4]
+    η = [1f-6]
     for iter = 2:maxiter
         #for nn = 1:Int(round((n/bs)))
         #@views mul!(
@@ -357,7 +357,7 @@ function cal_rotation(
         copyto!(gp, g)
         while !(llh - llhp < 0)
             η ./= 2
-            U .= Up .- g .* η .- randn(T, d, d) * 0.01
+            U .= Up .- g .* η #.- randn(T, d, d) * 0.01
             mul!(a, X, U' * wh)
             llh = sum(log1pexp.((1 .- 2 .* t) .* a))
             @debug "llh" llh - llhp
