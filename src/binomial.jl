@@ -342,9 +342,13 @@ function cal_rotation(
                 (y[1 + bs*(nn-1):bs*nn] .- t[1 + bs*(nn-1) : bs*nn])' *
                 X[1 + bs*(nn-1) : bs*nn, :]
             )
-            g .-= U * transpose(g) * U
+            g .= g * U' .- U * g'
+            #g .-= U' * wh * wh'
+            #g .-= U * transpose(g) * U
             copyto!(Up, U)
-            U .-= η .* g
+            mul!(U, I - η .* g, Up)
+            ldvi!(cholesky(I + η .* g), U)
+            #U .-= η .* g
             mul!(a, X, U' * wh)
             y .= logistic.(a)
             copyto!(gp, g)
