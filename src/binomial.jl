@@ -333,7 +333,7 @@ function cal_rotation(
     mul!(a, X, U' * wh)
     y = logistic.(a)
     llhp = Inf
-    bs = 10
+    bs = 32
     η = [1f-6]
     for iter = 2:maxiter
         for nn = 1:Int(round((n/bs)))
@@ -353,28 +353,7 @@ function cal_rotation(
             y .= logistic.(a)
             copyto!(gp, g)
         end
-        #mul!(g, wh[:, :], (y .- t)' * X)
-        #g .= @views wh[:, :] * (y[iter % n] .- t[iter % n])' * X[iter % n, :]
-        #g .-= U * transpose(g) * U
-        #@debug "g" g
-        #copyto!(Up, U)
-        #U .-= η .* g #+ β .* gp
-        #mul!(a, X, U' * wh)
         llh = sum(log1pexp.((1 .- 2 .* t) .* a))
-        #@debug "llh" llh
-        #copyto!(gp, g)
-        #while !(llh - llhp < 0)
-        #    η ./= 2
-        #    U .= Up .- g .* η #.- randn(T, d, d) * 0.01
-        #    mul!(a, X, U' * wh)
-        #    llh = sum(log1pexp.((1 .- 2 .* t) .* a))
-        #    @debug "llh" llh - llhp
-        #end
-        #@debug "llh" llh
-        #y .= logistic.(a)
-        #η .= abs(sum((U .- Up) .* (g .- gp))) ./
-        #    (sum((g .- gp) .^ 2) + ϵ)
-        #end
         @debug "llh-llhp" llh-llhp
         @debug "U" U' * U
         #@debug "η" η
