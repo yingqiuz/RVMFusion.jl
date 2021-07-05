@@ -343,7 +343,7 @@ function cal_rotation(
                 X[1 + bs*(nn-1) : bs*nn, :]
             )
             #
-            #g .-= U' * wh * wh'
+            g .-= U' * wh * wh'
             g .= g * U' .- U * g'
             #g .-= U * transpose(g) * U
             copyto!(Up, U)
