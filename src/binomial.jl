@@ -359,7 +359,7 @@ function cal_rotation(
         @debug "U" U' * U
         #@debug "η" η
         @debug "sum(g .^ 2)" sum(g .^ 2)
-        if abs(llh - llhp) < tol || iter == maxiter
+        if sum(g .^ 2) < tol || iter == maxiter
             break
         else
             llhp = llh
