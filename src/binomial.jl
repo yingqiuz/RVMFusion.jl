@@ -291,7 +291,7 @@ function cal_rotation(
     mul!(a, X, U' * wh)
     y = logistic.(a)
     llhp = Inf
-    η = [1f-5]
+    η = [1f-6]
     for iter = 2:maxiter
         for nn = 1:Int(round((n/bs)))
             @views mul!(
@@ -313,8 +313,8 @@ function cal_rotation(
         llh = sum(log1pexp.((1 .- 2 .* t) .* a))
         @debug "llh-llhp" llh-llhp
         @debug "U" U' * U
-        @debug "g" g
         @debug "sum(g .^ 2)" sum(g.^2)
+        @debug "sum(g .^ 2)" sum((g .- gp).^2)
         if sum((g .- gp).^2) < tol || iter == maxiter
             if iter == maxiter
                 @warn "Not conerged after $(maxiter) steps."
