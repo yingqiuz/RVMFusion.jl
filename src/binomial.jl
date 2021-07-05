@@ -326,7 +326,7 @@ function cal_rotation(
             if iter == maxiter
                 @warn "Not conerged after $(maxiter) steps."
             end
-            @debug "sum(g .^ 2)" sum(g.^2)
+            @info "sum(g .^ 2)" sum(g.^2)
             # calculate diagonal of invH
             WoodburyInv!(view(g, :, 1), α, Diagonal(sqrt.(y .* (1 .- y))) * X)
             wl = U' * wh  #Uinit .= U
