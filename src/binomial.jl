@@ -354,7 +354,7 @@ function cal_rotation(
         llh = sum(log1pexp.((1 .- 2 .* t) .* a))
         @debug "llh" llh
         while !(llh - llhp < 0)
-            g ./= 2
+            η ./= 2
             U .= Up .- g .* η
             mul!(a, X, U' * wh)
             llh = sum(log1pexp.((1 .- 2 .* t) .* a))
