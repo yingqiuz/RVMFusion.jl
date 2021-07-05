@@ -339,43 +339,49 @@ function cal_rotation(
     #bs = 10
     η = [1f-6]
     for iter = 2:maxiter
-        #for nn = 1:Int(round((n/bs)))
-        #@views mul!(
-        #    g, wh[:, :],
-        #    (y[1 + bs*(nn-1):bs*nn] .- t[1 + bs*(nn-1) : bs*nn])' *
-        #    X[1 + bs*(nn-1) : bs*nn, :]
-        #)
-        mul!(g, wh[:, :], (y .- t)' * X)
-        #g .= @views wh[:, :] * (y[iter % n] .- t[iter % n])' * X[iter % n, :]
-        g .-= U * transpose(g) * U
-        @debug "g" g
-        copyto!(Up, U)
-        U .-= η .* g #+ β .* gp
-        mul!(a, X, U' * wh)
-        llh = sum(log1pexp.((1 .- 2 .* t) .* a))
-        @debug "llh" llh
-        copyto!(gp, g)
-        while !(llh - llhp < 0)
-            η ./= 2
-            U .= Up .- g .* η #.- randn(T, d, d) * 0.01
+        for nn = 1:Int(round((n/bs)))
+            @views mul!(
+                g, wh[:, :],
+                (y[1 + bs*(nn-1):bs*nn] .- t[1 + bs*(nn-1) : bs*nn])' *
+                X[1 + bs*(nn-1) : bs*nn, :]
+            )
+            g .-= U * transpose(g) * U
+            copyto!(Up, U)
+            U .-= η .* g
             mul!(a, X, U' * wh)
-            llh = sum(log1pexp.((1 .- 2 .* t) .* a))
-            @debug "llh" llh - llhp
+            y .= logistic.(a)
+            copyto!(gp, g)
         end
-        @debug "llh" llh
-        y .= logistic.(a)
+        #mul!(g, wh[:, :], (y .- t)' * X)
+        #g .= @views wh[:, :] * (y[iter % n] .- t[iter % n])' * X[iter % n, :]
+        #g .-= U * transpose(g) * U
+        #@debug "g" g
+        #copyto!(Up, U)
+        #U .-= η .* g #+ β .* gp
+        #mul!(a, X, U' * wh)
+        #llh = sum(log1pexp.((1 .- 2 .* t) .* a))
+        #@debug "llh" llh
+        #copyto!(gp, g)
+        #while !(llh - llhp < 0)
+        #    η ./= 2
+        #    U .= Up .- g .* η #.- randn(T, d, d) * 0.01
+        #    mul!(a, X, U' * wh)
+        #    llh = sum(log1pexp.((1 .- 2 .* t) .* a))
+        #    @debug "llh" llh - llhp
+        #end
+        #@debug "llh" llh
+        #y .= logistic.(a)
         #η .= abs(sum((U .- Up) .* (g .- gp))) ./
         #    (sum((g .- gp) .^ 2) + ϵ)
         #end
         @debug "g" g
         @debug "U" U
-        @debug "η" η
-        @debug "llh - llhp" llh - llhp
-        if abs(llh - llhp) < tol || iter == maxiter
+        #@debug "η" η
+        #@debug "llh - llhp" llh - llhp
+        if sum(g .^ 2) < tol || iter == maxiter
             break
         end
-        llhp = llh
-
+        #llhp = llh
     end
     # make predictions
     return logistic.(Xtest * U' * wh)
