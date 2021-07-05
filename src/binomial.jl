@@ -327,7 +327,7 @@ function cal_rotation(
     g, gp = (zeros(T, d, d) for _ = 1:2)
     #@debug "U" U' * U size(U)
     #@debug "g" size(g)
-    η = [1f-6]
+    η = [1f-3]
     #β = [0.9f0]
     a, y = (Vector{T}(undef, n) for _ = 1:2)
     mul!(a, X, U' * wh)
@@ -353,16 +353,17 @@ function cal_rotation(
         mul!(a, X, U' * wh)
         llh = sum(log1pexp.((1 .- 2 .* t) .* a))
         @debug "llh" llh
+        copyto!(gp, g)
         while !(llh - llhp < 0)
-            η ./= 2
+            g ./= 2
             U .= Up .- g .* η
             mul!(a, X, U' * wh)
             llh = sum(log1pexp.((1 .- 2 .* t) .* a))
         end
         @debug "llh" llh
         y .= logistic.(a)
-        η .= abs(sum((U .- Up) .* (g .- gp))) ./
-            (sum((g .- gp) .^ 2) + ϵ)
+        #η .= abs(sum((U .- Up) .* (g .- gp))) ./
+        #    (sum((g .- gp) .^ 2) + ϵ)
         #end
         @debug "g" g
         @debug "U" U
@@ -372,7 +373,7 @@ function cal_rotation(
             break
         end
         llhp = llh
-        copyto!(gp, g)
+
     end
     # make predictions
     return logistic.(Xtest * U' * wh)
