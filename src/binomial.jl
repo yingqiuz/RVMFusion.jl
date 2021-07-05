@@ -265,7 +265,6 @@ function RVM!(
             #    ttmp, atol, maxiter)
             #end
             Q, R = qr(randn(T, n_ind, n_ind))
-            Q = I(n_ind)
             g = whtmp |> eachcol |>
             Map(
                 x -> cal_rotation(
@@ -324,7 +323,8 @@ function cal_rotation(
 ) where T <: Real
     n, d = size(X)
     #q, r = qr(randn(d, d))
-    U, Up = (copy(Uinit) for _ = 1:2)
+    #U, Up = (copy(Uinit) for _ = 1:2)
+    U, Up = (I(d) for _ = 1:2)
     g, gp = (zeros(T, d, d) for _ = 1:2)
     #@debug "U" U' * U size(U)
     #@debug "g" size(g)
