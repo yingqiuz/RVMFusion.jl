@@ -360,6 +360,7 @@ function cal_rotation(
             U .= Up .- g .* η
             mul!(a, X, U' * wh)
             llh = sum(log1pexp.((1 .- 2 .* t) .* a))
+            @debug "llh" llh - llhp
         end
         @debug "llh" llh
         y .= logistic.(a)
