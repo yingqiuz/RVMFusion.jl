@@ -337,7 +337,7 @@ function cal_rotation(
     @debug "(y .- t)' * X" (y .- t)' * X
     llhp = Inf
     bs = 10
-    η = [1f-5]
+    η = [1f-4]
     for iter = 2:maxiter
         for nn = 1:Int(round((n/bs)))
             @views mul!(
