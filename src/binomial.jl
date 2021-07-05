@@ -319,7 +319,7 @@ function cal_rotation(
         end
         llh = sum(log1pexp.((1 .- 2 .* t) .* a))
         @debug "llh-llhp" llh-llhp
-        @debug "U" U' * U
+        #@debug "U" U' * U
         @debug "sum(g .^ 2)" sum(g.^2)
         @debug "sum(g .^ 2)" sum((g .- gp).^2)
         if sum((g .- gp).^2) < tol || iter == maxiter
@@ -372,7 +372,7 @@ function cal_rotation(
         end
         llh = sum(log1pexp.((1 .- 2 .* t) .* a))
         @debug "llh-llhp" llh-llhp
-        @debug "U" U' * U
+        #@debug "U" U' * U
         @debug "g" g
         @debug "sum(g .^ 2)" sum((g .- gp).^2)
         if sum((g .- gp).^2) < tol || iter == maxiter
