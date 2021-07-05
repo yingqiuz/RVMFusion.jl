@@ -333,7 +333,7 @@ function cal_rotation(
     mul!(a, X, U' * wh)
     y = logistic.(a)
     llhp = Inf
-    bs = n
+    bs = 10
     η = [1f-6]
     for iter = 2:maxiter
         for nn = 1:Int(round((n/bs)))
@@ -379,7 +379,7 @@ function cal_rotation(
         @debug "U" U' * U
         #@debug "η" η
         @debug "sum(g .^ 2)" sum(g .^ 2)
-        if sum(g .^ 2) < tol || iter == maxiter
+        if abs(llh - llhp) < tol || iter == maxiter
             break
         else
             llhp = llh
