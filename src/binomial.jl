@@ -347,7 +347,7 @@ function cal_rotation(
             #g .-= U * transpose(g) * U
             copyto!(Up, U)
             mul!(U, I - η .* g, Up)
-            ldiv!(qr!(Hermitian(I + η .* g)), U)
+            ldiv!(qr!(I + η .* g), U)
             #U .-= η .* g
             mul!(a, X, U' * wh)
             y .= logistic.(a)
