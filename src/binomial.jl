@@ -314,7 +314,7 @@ function cal_rotation(
         @debug "llh-llhp" llh-llhp
         @debug "U" U' * U
         @debug "g" g
-        @debug "sum(g .^ 2)" sum((g .- gp).^2)
+        @debug "sum(g .^ 2)" sum(g.^2)
         if sum((g .- gp).^2) < tol || iter == maxiter
             if iter == maxiter
                 @warn "Not conerged after $(maxiter) steps."
