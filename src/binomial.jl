@@ -371,7 +371,7 @@ function cal_rotation(
         if sum((g).^2) < tol || iter == maxiter
             break
         end
-        llhp = llhp
+        llhp = llh
         copyto!(gp, g)
     end
     # make predictions
