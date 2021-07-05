@@ -258,8 +258,8 @@ function RVM!(
             )
         ) |> Broadcasting() |> Folds.sum
         g ./= n_samples
+        llh[iter] = g[end] + sum(log.(βtmp)) / 2 - n_ind * log(2π) / 2
         β[ind_l] .= @views (1 .- βtmp .* g[n_ind+1:2n_ind]) ./ (g[1:n_ind] .+ ϵ)
-        llh[iter] = g[end]
         incr = (llh[iter] - llh[iter-1]) / llh[iter-1]
         println("iteration ", iter-1, " done. incr ", incr)
         if abs(incr) < rtol || iter == maxiter
@@ -328,8 +328,8 @@ function cal_rotation(
             end
             # calculate diagonal of invH
             WoodburyInv!(view(g, :, 1), α, Diagonal(sqrt.(y .* (1 .- y))) * X)
-            #Uinit .= U
-            return vcat((U' * wh) .^ 2, view(g, :, 1), llh)
+            wl = U' * wh  #Uinit .= U
+            return vcat(wl .^ 2, view(g, :, 1), -llh -sum(α.*wl.^2)/2)
         else
             llhp = llh
             copyto!(gp, g)
