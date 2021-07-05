@@ -360,7 +360,7 @@ function cal_rotation(
         #copyto!(Up, U)
         #U .-= η .* g #+ β .* gp
         #mul!(a, X, U' * wh)
-        #llh = sum(log1pexp.((1 .- 2 .* t) .* a))
+        llh = sum(log1pexp.((1 .- 2 .* t) .* a))
         #@debug "llh" llh
         #copyto!(gp, g)
         #while !(llh - llhp < 0)
@@ -375,17 +375,17 @@ function cal_rotation(
         #η .= abs(sum((U .- Up) .* (g .- gp))) ./
         #    (sum((g .- gp) .^ 2) + ϵ)
         #end
-        #@debug "g" g
+        @debug "llh-llhp" llh-llhp
         #@debug "U" U
         #@debug "η" η
         @debug "sum(g .^ 2)" sum(g .^ 2)
         if sum(g .^ 2) < tol || iter == maxiter
             break
         end
-        #llhp = llh
+        llhp = llh
     end
     # make predictions
-    return logistic.(Xtest * wh)
+    return logistic.(Xtest * U' * wh)
 end
 
 function Logit(
