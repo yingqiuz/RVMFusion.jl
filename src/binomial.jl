@@ -374,10 +374,10 @@ function cal_rotation(
         #η .= abs(sum((U .- Up) .* (g .- gp))) ./
         #    (sum((g .- gp) .^ 2) + ϵ)
         #end
-        @debug "g" g
-        @debug "U" U
+        #@debug "g" g
+        #@debug "U" U
         #@debug "η" η
-        #@debug "llh - llhp" llh - llhp
+        @debug "sum(g .^ 2)" sum(g .^ 2)
         if sum(g .^ 2) < tol || iter == maxiter
             break
         end
