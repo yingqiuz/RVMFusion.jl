@@ -267,8 +267,15 @@ function RVM!(
                 @warn "Not converged after $(maxiter) iterations.
                     Results might be inaccurate."
             end
-
-            return predictions ./ num_batches
+            predictions = whtmp |> eachcol |>
+            Map(
+                x -> cal_rotation(
+                    x, Q, βtmp, XLtmp, transpose(XLtmp),
+                    t, XLtest[:, ind_h[ind_l]], atol, maxiter,
+                    ϵ, BatchSize
+                )
+            ) |> Broadcasting() |> Folds.sum
+            return predictions ./ n_samples
         end
     end
 end
