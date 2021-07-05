@@ -334,7 +334,7 @@ function cal_rotation(
     y = logistic.(a)
     llhp = Inf
     bs = 10
-    η = [1f-7]
+    η = [1f-6]
     for iter = 2:maxiter
         for nn = 1:Int(round((n/bs)))
             @views mul!(
@@ -342,13 +342,14 @@ function cal_rotation(
                 (y[1 + bs*(nn-1):bs*nn] .- t[1 + bs*(nn-1) : bs*nn])' *
                 X[1 + bs*(nn-1) : bs*nn, :]
             )
-            #g .= g * U' .- U * g'
-            #g .-= U' * wh * wh'
+            #
+            g .-= U' * wh * wh'
+            g .= g * U' .- U * g'
             #g .-= U * transpose(g) * U
             copyto!(Up, U)
-            #mul!(U, I - η .* g, Up)
-            #ldiv!(qr!(I + η .* g), U)
-            U .-= η .* g
+            mul!(U, I - η .* g, Up)
+            ldiv!(qr!(I + η .* g), U)
+            #U .-= η .* g
             mul!(a, X, U' * wh)
             y .= logistic.(a)
             copyto!(gp, g)
