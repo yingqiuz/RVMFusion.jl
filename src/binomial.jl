@@ -384,7 +384,7 @@ function cal_rotation(
         #llhp = llh
     end
     # make predictions
-    return logistic.(X * U' * wh)
+    return logistic.(Xtest * U' * wh)
 end
 
 function Logit(
