@@ -316,7 +316,7 @@ function RVM!(
 end
 
 function cal_rotation(
-    wh::AbstractVector{T}, Uinit::AbstractMatrix{T}, #α::AbstractVector{T},
+    wh::AbstractVector{T}, Uinit::AbstractMatrix{T}, α::AbstractVector{T},
     X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
     t::AbstractVector{T}, Xtest::AbstractMatrix{T}, tol::T, maxiter::Int,
     is_final::Bool=false, ϵ::T=convert(T, 1e-8)
@@ -343,7 +343,7 @@ function cal_rotation(
                 X[1 + bs*(nn-1) : bs*nn, :]
             )
             #
-            g .-= U' * wh * wh'
+            g .+= U' * wh * wh'
             g .= g * U' .- U * g'
             #g .-= U * transpose(g) * U
             copyto!(Up, U)
@@ -357,7 +357,7 @@ function cal_rotation(
         @debug "llh-llhp" llh-llhp
         @debug "U" U' * U
         @debug "g" g
-        @debug "sum(g .^ 2)" sum(g .^ 2)
+        @debug "sum(g .^ 2)" sum((g .- gp).^2)
         if sum((g .- gp).^2) < tol || iter == maxiter
             break
         else
