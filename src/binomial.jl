@@ -348,6 +348,7 @@ function cal_rotation(
         mul!(g, wh[:, :], (y .- t)' * X)
         #g .= @views wh[:, :] * (y[iter % n] .- t[iter % n])' * X[iter % n, :]
         g .-= U * transpose(g) * U
+        @debug "g" g
         copyto!(Up, U)
         U .-= η .* g #+ β .* gp
         mul!(a, X, U' * wh)
