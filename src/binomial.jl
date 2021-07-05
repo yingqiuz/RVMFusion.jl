@@ -381,8 +381,6 @@ function cal_rotation(
         @debug "sum(g .^ 2)" sum(g .^ 2)
         if sum(g .^ 2) < tol || iter == maxiter
             break
-        elseif llh - llhp > 0
-            η ./= 2
         else
             llhp = llh
         end
