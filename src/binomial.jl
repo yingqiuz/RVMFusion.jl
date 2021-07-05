@@ -331,14 +331,10 @@ function cal_rotation(
     #β = [0.9f0]
     a, y = (Vector{T}(undef, n) for _ = 1:2)
     mul!(a, X, U' * wh)
-    @debug "a" a
     y = logistic.(a)
-    @debug "y" y
-    @debug "U" U
-    @debug "(y .- t)' * X" (y .- t)' * X
     llhp = Inf
     bs = 10
-    η = [1f-6]
+    η = [1f-4]
     for iter = 2:maxiter
         for nn = 1:Int(round((n/bs)))
             @views mul!(
@@ -346,7 +342,7 @@ function cal_rotation(
                 (y[1 + bs*(nn-1):bs*nn] .- t[1 + bs*(nn-1) : bs*nn])' *
                 X[1 + bs*(nn-1) : bs*nn, :]
             )
-            #g .-= U * transpose(g) * U
+            g .-= U * transpose(g) * U
             copyto!(Up, U)
             U .-= η .* g
             mul!(a, X, U' * wh)
