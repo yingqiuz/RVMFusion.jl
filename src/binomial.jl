@@ -351,7 +351,7 @@ function cal_rotation(
     mul!(a, X, U' * wh)
     y = logistic.(a)
     llhp = Inf
-    η = [1f-5]
+    η = [1f-6]
     for iter = 2:maxiter
         for nn = 1:Int(round((n/bs)))
             @views mul!(
