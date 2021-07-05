@@ -37,7 +37,7 @@ function predict(
     X::AbstractMatrix{T}, w::AbstractVector{T}, H::AbstractMatrix{T},
     Xt::AbstractMatrix{T}=transpose(X)
 ) where T <: Real
-    p = (1 .+ diag(X * H * transpose(X)) .* π ./ 8).^(-0.5f0) .*
+    p = (1 .+ diag(X * H * Xt) .* π ./ 8).^(-0.5f0) .*
         (X * w)
     return logistic.(p)
 end
@@ -220,8 +220,8 @@ function RVM!(
     #@show ind_nonzero
     if n_samples == 1
         whsamples = wh[:, :]
-        β = diag(LinearAlgebra.inv!(cholesky(model.H)))
-        β = β[ind_nonzero]
+        #β = diag(LinearAlgebra.inv!(cholesky(model.H)))
+        #β = β[ind_nonzero]
     else
         println("Generate posterior samples of wh...")
         whsamples = rand(
@@ -231,14 +231,14 @@ function RVM!(
             ),
             n_samples
         )
-        β = β[ind_h]
     end
     @info "whsamples" whsamples
     # remove irrelevant columns
     XL = XL[:, ind_h]
-    wl = zeros(T, size(ind_h, 1))
+    #wl = zeros(T, size(ind_h, 1))
+    β = β[ind_h]
     println("Setup done.")
-    for iter ∈ 2:2
+    for iter ∈ 2:maxiter
         # remove irrelavent features
         ind_l = findall(β .< (1/rtol)) # optional
         n_ind = size(ind_l, 1)
@@ -247,79 +247,37 @@ function RVM!(
         end
         n_ind = size(ind_l, 1)
         βtmp = copy(β[ind_l])
-        wltmp = copy(wl[ind_l])
         whtmp = copy(whsamples[ind_l, :])
-        # iterate through batches
-        println("epoch $(iter-1). Starting...")
-        @showprogress 0.5 "epoch $(iter-1) " for b ∈ 1:num_batches
-            if b != num_batches
-                XLtmp = copy(XL[(b-1)*BatchSize+1:b*BatchSize, ind_l])
-                ttmp = copy(t[(b-1)*BatchSize+1:b*BatchSize])
-            else
-                XLtmp = copy(XL[(b-1)*BatchSize+1:end, ind_l])
-                ttmp = copy(t[(b-1)*BatchSize+1:end])
-            end
-            #g = zeros(T, 3n_ind + 1)
-            #for nn ∈ 1:n_samples
-            #    g .+= Logit(whtmp[:, nn], wltmp, βtmp, XLtmp, transpose(XLtmp),
-            #    ttmp, atol, maxiter)
-            #end
-            Q, R = qr(randn(T, n_ind, n_ind))
-            g = whtmp |> eachcol |>
-            Map(
-                x -> cal_rotation(
-                    x, Q, XLtmp, transpose(XLtmp),
-                    ttmp, XLtest[:, ind_h[ind_l]], atol, maxiter
-                )
-            ) |> Broadcasting() |> Folds.sum
-            g ./= n_samples
-            return g
-            #llh[iter] += g[end] + sum(log.(βtmp))/2 - n_ind*log(2π)/2
-            #βtmp .= @views (
-            #    1 .- βtmp .* g[n_ind+1:2n_ind]
-            #) ./ (g[1:n_ind] .+ ϵ)
-            #wltmp .= @view g[2n_ind+1:3n_ind]
-            #βsum[ind_l] .+= @views g[1:end-1] .^ 2
-        end
-        β[ind_l] .= βtmp
-        wl[ind_l] .= wltmp
-        llh[iter] /= num_batches
+        XLtmp = copy(XL[:, ind_l])
+        Q, R = qr(randn(T, n_ind, n_ind))
+        g = whtmp |> eachcol |>
+        Map(
+            x -> cal_rotation(
+                x, Q, βtmp, XLtmp, transpose(XLtmp),
+                t, atol, maxiter, ϵ, BatchSize
+            )
+        ) |> Broadcasting() |> Folds.sum
+        g ./= n_samples
+        β[ind_l] .= @views (1 .- βtmp .* g[n_ind+1:2n_ind]) ./ (g[1:n_ind] .+ ϵ)
+        llh[iter] = g[end]
         incr = (llh[iter] - llh[iter-1]) / llh[iter-1]
-        println("epoch ", iter-1, " done. incr ", incr)
+        println("iteration ", iter-1, " done. incr ", incr)
         if abs(incr) < rtol || iter == maxiter
             if iter == maxiter
                 @warn "Not converged after $(maxiter) iterations.
                     Results might be inaccurate."
             end
-            XLtesttmp = copy(XLtest[:, ind_h[ind_l]])
-            predictions = zeros(T, size(XLtest, 1))
-            @showprogress 0.5 "making predictions..." for b ∈ 1:num_batches
-                if b != num_batches
-                    XLtmp = copy(XL[(b-1)*BatchSize+1:b*BatchSize, ind_l])
-                    ttmp = copy(t[(b-1)*BatchSize+1:b*BatchSize])
-                else
-                    XLtmp = copy(XL[(b-1)*BatchSize+1:end, ind_l])
-                    ttmp = copy(t[(b-1)*BatchSize+1:end])
-                end
-                predictions .+= (
-                    whsamples[ind_l, :] |> eachcol |> Map(
-                        x -> Logit(
-                            x, wltmp, βtmp, XLtmp, transpose(XLtmp),
-                            ttmp, XLtesttmp, atol, maxiter, true
-                        )
-                    ) |> Broadcasting() |> Folds.sum
-                ) ./ n_samples
-            end
+
             return predictions ./ num_batches
         end
     end
 end
 
 function cal_rotation(
-    wh::AbstractVector{T}, Uinit::AbstractMatrix{T}, #α::AbstractVector{T},
-    X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
-    t::AbstractVector{T}, Xtest::AbstractMatrix{T}, tol::T, maxiter::Int,
-    is_final::Bool=false, ϵ::T=convert(T, 1e-8)
+    wh::AbstractVector{T}, Uinit::AbstractMatrix{T},
+    α::AbstractVector{T}, X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
+    t::AbstractVector{T}, tol::T, maxiter::Int,
+    ϵ::T=convert(T, 1e-8), bs::Int=size(X, 1), is_final=false
 ) where T <: Real
     n, d = size(X)
     #q, r = qr(randn(d, d))
@@ -333,7 +291,6 @@ function cal_rotation(
     mul!(a, X, U' * wh)
     y = logistic.(a)
     llhp = Inf
-    bs = n
     η = [1f-5]
     for iter = 2:maxiter
         for nn = 1:Int(round((n/bs)))
@@ -343,7 +300,7 @@ function cal_rotation(
                 X[1 + bs*(nn-1) : bs*nn, :]
             )
             #
-            g .+= U' * wh * wh'
+            g .+= Diagonal(α) * U' * wh * wh'
             g .= g * U' .- U * g'
             #g .-= U * transpose(g) * U
             copyto!(Up, U)
@@ -359,139 +316,66 @@ function cal_rotation(
         @debug "g" g
         @debug "sum(g .^ 2)" sum((g .- gp).^2)
         if sum((g .- gp).^2) < tol || iter == maxiter
-            break
+            if iter == maxiter
+                @warn "Not conerged after $(maxiter) steps."
+            end
+            # calculate diagonal of invH
+            WoodburyInv!(view(g, :, 1), α, Diagonal(sqrt.(y .* (1 .- y))) * X)
+            #Uinit .= U
+            return vcat((U' * wh) .^ 2, view(g, :, 1), llh)
         else
             llhp = llh
             copyto!(gp, g)
         end
     end
-    # make predictions
-    return logistic.(Xtest * U' * wh)
 end
 
-function Logit(
-    wh::AbstractVector{T}, wltmp::AbstractVector{T}, α::AbstractVector{T},
-    U::AbstractMatrix{T}, X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
-    t::AbstractVector{T}, tol::T, maxiter::Int,
-    is_final::Bool=false, ϵ::T=convert(T, 1e-8)
-) where T<:Real
+function cal_rotation(
+    wh::AbstractVector{T}, Uinit::AbstractMatrix{T},
+    α::AbstractVector{T}, X::AbstractMatrix{T}, Xt::AbstractMatrix{T},
+    t::AbstractVector{T}, Xtest::AbstractMatrix{T}, tol::T, maxiter::Int,
+    ϵ::T=convert(T, 1e-8), bs::Int=size(X, 1)
+) where T <: Real
     n, d = size(X)
-    wl = copy(wltmp)
+    U, Up = (copy(Uinit) for _ = 1:2)
+    #U, Up = (Diagonal(ones(T, d)) for _ = 1:2)
     g, gp = (zeros(T, d, d) for _ = 1:2)
-    Up = copy(U)
     a, y = (Vector{T}(undef, n) for _ = 1:2)
-    mul!(a, X, wh .+ wl)
-    llhp = -Inf32
-    y .= logistic.(a)
-    η = [0.0001f0]
-    #@debug "g" findall(isnan, g)
-    #@debug "α" α[findall(isnan, g)]
-    #@debug "wl" wl[findall(isnan, g)]
-    #@debug "wp" wp[findall(isnan, g)]
+    mul!(a, X, U' * wh)
+    y = logistic.(a)
+    llhp = Inf
+    η = [1f-5]
     for iter = 2:maxiter
-        # make a step
-        mul!(g, Xt, t .- y)
-        g .-= α .* wl
-        #ldiv!(factorize(H), g)
-        # update w
-        @debug "g" g
-        @debug "α" α
-        @debug "wl" wl
-        @debug "wp" wp
-        copyto!(wp, wl)
-        wl .+= g .* η
-        mul!(a, X, wl .+ wh)
-        llh = -sum(log1pexp.((1 .- 2 .* t) .* a)) -
-            sum(α .* wl .^ 2) / 2
-        while !(llh - llhp > 0) & !(abs(llh - llhp) < tol)
-            η ./= 2
-            wl .= wp .+ g .* η
-            mul!(a, X, wl .+ wh)
-            llh = -sum(log1pexp.((1 .- 2 .* t) .* a)) -
-                sum(α .* wl .^ 2)/2
+        for nn = 1:Int(round((n/bs)))
+            @views mul!(
+                g, wh[:, :],
+                (y[1 + bs*(nn-1):bs*nn] .- t[1 + bs*(nn-1) : bs*nn])' *
+                X[1 + bs*(nn-1) : bs*nn, :]
+            )
+            #
+            g .+= Diagonal(α) * U' * wh * wh'
+            g .= g * U' .- U * g'
+            #g .-= U * transpose(g) * U
+            copyto!(Up, U)
+            mul!(U, I - η .* g, Up)
+            ldiv!(qr!(I + η .* g), U)
+            #U .-= η .* g
+            mul!(a, X, U' * wh)
+            y .= logistic.(a)
         end
-        y .= logistic.(a)
-        η .= abs(sum((wl .- wp) .* (g .- gp))) ./
-            (sum((g .- gp) .^ 2) + ϵ)
-        if abs(llh - llhp) < tol || iter == maxiter# || η[1] < 1e-8
+        llh = sum(log1pexp.((1 .- 2 .* t) .* a))
+        @debug "llh-llhp" llh-llhp
+        @debug "U" U' * U
+        @debug "g" g
+        @debug "sum(g .^ 2)" sum((g .- gp).^2)
+        if sum((g .- gp).^2) < tol || iter == maxiter
             if iter == maxiter
-                @warn "Not converged in finding the posterior of wl."
+                @warn "Not conerged after $(maxiter) steps."
             end
-            if is_final
-                return wl .+ wh
-            else
-                WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
-                return vcat(wl.^2, g, wl, llh)
-            end
+            Σ = WoodburyInv!(α, Diagonal(sqrt.(y .* (1 .- y))) * X)
+            return predict(Xtest, U'*wh, Σ)
         else
             llhp = llh
-            # update gradient
-            copyto!(gp, g)
-        end
-    end
-end
-
-function Logit(
-    wh::AbstractVector{T}, wltmp::AbstractVector{T}, α::AbstractVector{T},
-    X::AbstractMatrix{T}, Xt::AbstractMatrix{T}, t::AbstractVector{T},
-    Xtest::AbstractMatrix{T}, tol::T, maxiter::Int,
-    is_final::Bool=false, ϵ::T=convert(T, 1e-8)
-) where T<:Real
-    wl = copy(wltmp)
-    n, d = size(X)
-    wp, g, gp = (zeros(T, d) for _ = 1:3)
-    a, y = (Vector{T}(undef, n) for _ = 1:2)
-    mul!(a, X, wh .+ wl)
-    llhp=-Inf32
-    y .= logistic.(a)
-    η = [0.0001f0]
-    @debug "g" findall(isnan, g)
-    @debug "α" α[findall(isnan, g)]
-    @debug "wl" wl[findall(isnan, g)]
-    @debug "wp" wp[findall(isnan, g)]
-    for iter = 2:maxiter
-        # make a step
-        mul!(g, Xt, t .- y)
-        g .-= α .* wl
-        #ldiv!(factorize(H), g)
-        # update w
-        @debug "g" g
-        @debug "α" α
-        @debug "wl" wl
-        @debug "wp" wp
-        copyto!(wp, wl)
-        wl .+= g .* η
-        mul!(a, X, wl .+ wh)
-        llh = -sum(log1pexp.((1 .- 2 .* t) .* a)) -
-            sum(α .* wl .^ 2) / 2
-        while !(llh - llhp > 0) & !(abs(llh - llhp) < tol)
-            η ./= 2
-            wl .= wp .+ g .* η
-            mul!(a, X, wl .+ wh)
-            llh = -sum(log1pexp.((1 .- 2 .* t) .* a)) -
-                sum(α .* wl .^ 2)/2
-        end
-        y .= logistic.(a)
-        η .= abs(sum((wl .- wp) .* (g .- gp))) ./
-            (sum((g .- gp) .^ 2) + ϵ)
-        if abs(llh - llhp) < tol || iter == maxiter# || η[1] < 1e-8
-            if iter == maxiter
-                @warn "Not converged in finding the posterior of wl."
-            end
-            if is_final
-                H = WoodburyInv!(
-                    α,
-                    Diagonal(sqrt.(y .* (1 .- y))) * X
-                )
-                return predict(Xtest, wl .+ wh, H, Xt)
-                #return predict(Xtest, wl.+wh)
-            else
-                WoodburyInv!(g, α, Diagonal(sqrt.(y .* (1 .- y))) * X)
-                return vcat(wl.^2, g, wl, llh)
-            end
-        else
-            llhp = llh
-            # update gradient
             copyto!(gp, g)
         end
     end
