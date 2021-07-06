@@ -13,8 +13,10 @@ include("utils.jl")
 include("binomial.jl")
 include("multinomial.jl")
 
-function RVM(X::Matrix{T}, t::Vector{Int}, α_init::T=convert(T, 1.0);
-             kw...) where T<:Real
+function RVM(
+    X::AbstractMatrix{T}, t::AbstractVector{Int},
+    α_init::T=convert(T, 1.0); kw...
+) where T<:Real
     n = size(X, 1)
     d = size(X, 2)
     size(t, 1) == n || throw(DimensionMismatch("Sizes of X and t mismatch."))
@@ -33,7 +35,8 @@ function RVM(X::Matrix{T}, t::Vector{Int}, α_init::T=convert(T, 1.0);
 end
 
 function RVM(
-    XH::Union{Matrix{T}, BnRVModel{T}}, XL::Matrix{T}, t::Vector{Int},
+    XH::Union{AbstractMatrix{T}, BnRVModel{T}}, XL::AbstractMatrix{T},
+    t::AbstractVector{Int},
     α_init::T=convert(T, 1.0), β_init::T=convert(T, 1.0);
     kw...
 ) where T<:Real
@@ -57,8 +60,9 @@ function RVM(
 end
 
 function RVM(
-    XH::Union{Matrix{T}, BnRVModel{T}}, XL::Matrix{T}, t::Vector{Int},
-    XLtest::Matrix{T}, α_init::T=convert(T, 1.0),
+    XH::Union{AbstractMatrix{T}, BnRVModel{T}}, XL::AbstractMatrix{T},
+    t::AbstractVector{Int},
+    XLtest::AbstractMatrix{T}, α_init::T=convert(T, 1.0),
     β_init::T=convert(T, 1.0); kw...
 ) where T<:Real
     n = size(XL, 1)
