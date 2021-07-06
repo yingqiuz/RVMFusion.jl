@@ -322,7 +322,7 @@ function cal_rotation(
         #@debug "U" U' * U
         @debug "sum(g .^ 2)" sum(g.^2)
         @debug "sum(g .^ 2)" sum((g .- gp).^2)
-        if sum((g .- gp).^2) < tol || iter == maxiter
+        if sum(g.^2) < tol || iter == maxiter
             if iter == maxiter
                 @warn "Not conerged after $(maxiter) steps."
             end
@@ -376,7 +376,7 @@ function cal_rotation(
         #@debug "U" U' * U
         @debug "g" g
         @debug "sum(g .^ 2)" sum((g .- gp).^2)
-        if sum((g .- gp).^2) < tol || iter == maxiter
+        if sum(g.^2) < tol || iter == maxiter
             if iter == maxiter
                 @warn "Not conerged after $(maxiter) steps."
             end
