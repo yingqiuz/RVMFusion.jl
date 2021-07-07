@@ -247,6 +247,7 @@ function RVM!(
         end
         n_ind = size(ind_l, 1)
         βtmp = copy(β[ind_l])
+        @info "βtmp" βtmp
         whtmp = copy(whsamples[ind_l, :])
         XLtmp = copy(XL[:, ind_l])
         Q, R = qr(randn(T, n_ind, n_ind))
@@ -326,7 +327,7 @@ function cal_rotation(
             if iter == maxiter
                 @warn "Not conerged after $(maxiter) steps."
             end
-            @info "sum(g .^ 2)" sum(g.^2)
+            @debug "sum(g .^ 2)" sum(g.^2)
             # calculate diagonal of invH
             WoodburyInv!(view(g, :, 1), α, Diagonal(sqrt.(y .* (1 .- y))) * X)
             wl = U' * wh  #Uinit .= U
